@@ -1,0 +1,9 @@
+dataset_config: configs/datasets/cam16.yaml
+frontend_config: configs/feature_specs/fixed_wavelet_v1.yaml
+seed: 20260728
+batch_size: 2
+image_size: 64
+backend:
+  classes: 2
+  hidden: 32
+

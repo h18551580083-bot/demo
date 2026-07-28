@@ -1,0 +1,18 @@
+mode: digital_ideal
+kernel:
+  families: [log, gabor]
+  size: 15
+  scales: [1.5, 3.0]
+  orientations: 4
+  wavelength_factor: 4.0
+  gamma: 0.5
+  zero_mean: true
+  normalization: l2
+detector:
+  sqrt_after_detection: true
+  epsilon: 1.0e-6
+  noise_std: 0.0
+  quantization_bits: null
+  saturation: null
+  pool_size: 4
+

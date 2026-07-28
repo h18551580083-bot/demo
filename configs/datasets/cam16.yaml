@@ -1,0 +1,12 @@
+dataset_id: cam16_patch_256_s128
+root: E:/cg/cam16_patch
+manifest: cam16_class_quota/metadata/training_manifest.csv
+class_mapping:
+  normal: 0
+  tumor: 1
+patient_id_column: slide_id
+sample_id_column: patch_id
+path_column: patch_path
+split_column: split
+label_column: label
+
