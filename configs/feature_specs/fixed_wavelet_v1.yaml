@@ -1,3 +1,4 @@
+status: provisional_example_not_p0_locked
 mode: digital_ideal
 kernel:
   families: [log, gabor]
@@ -15,4 +16,3 @@ detector:
   quantization_bits: null
   saturation: null
   pool_size: 4
-

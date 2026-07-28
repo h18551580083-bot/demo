@@ -17,6 +17,9 @@ pytest
 
 默认数据路径为 `E:/cg/cam16_patch`，也可在 YAML 中修改。训练与正式实验不得使用
 test split 做结构或超参数选择。
+`fixed_wavelet_v1.yaml` 中的数值仅用于验证工程链路，状态为 provisional；正式 P1
+前必须完成 P0 决策并生成独立的锁定配置。CLI 可用 `--output artifacts/<run_id>`
+写入配置哈希、代码版本和运行摘要。
 
 ## 目录
 
@@ -31,4 +34,3 @@ test split 做结构或超参数选择。
 
 详见 [docs/architecture.md](docs/architecture.md) 与
 [docs/p0_decisions.md](docs/p0_decisions.md)。
-

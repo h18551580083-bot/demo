@@ -10,6 +10,7 @@ from cam16_wavelet.contracts import DetectorConfig
 class SquareLawDetector(nn.Module):
     def __init__(self, config: DetectorConfig) -> None:
         super().__init__()
+        config.validate()
         self.config = config
 
     def forward(self, field: torch.Tensor) -> torch.Tensor:
@@ -28,4 +29,3 @@ class SquareLawDetector(nn.Module):
         if self.config.pool_size > 1:
             intensity = F.avg_pool2d(intensity, self.config.pool_size)
         return intensity
-

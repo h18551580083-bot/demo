@@ -16,7 +16,10 @@ class DatasetSpec:
     path_column: str = "patch_path"
     split_column: str = "split"
     label_column: str = "label"
+    label_name_column: str = "label_name"
     allowed_splits: tuple[str, ...] = ("train", "val", "test")
+    license_note: str = "TBD"
+    preprocessing_note: str = "TBD"
 
 
 @dataclass(frozen=True)
@@ -48,6 +51,18 @@ class DetectorConfig:
     saturation: float | None = None
     pool_size: int = 4
 
+    def validate(self) -> None:
+        if self.epsilon <= 0:
+            raise ValueError("epsilon must be positive")
+        if self.noise_std < 0:
+            raise ValueError("noise_std must be non-negative")
+        if self.quantization_bits is not None and self.quantization_bits < 1:
+            raise ValueError("quantization_bits must be >= 1")
+        if self.saturation is not None and self.saturation <= 0:
+            raise ValueError("saturation must be positive")
+        if self.pool_size < 1:
+            raise ValueError("pool_size must be >= 1")
+
 
 @dataclass(frozen=True)
 class FrontendConfig:
@@ -58,4 +73,3 @@ class FrontendConfig:
 
 def dataclass_dict(value: Any) -> dict[str, Any]:
     return asdict(value)
-

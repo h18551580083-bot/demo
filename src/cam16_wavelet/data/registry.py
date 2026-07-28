@@ -23,8 +23,6 @@ class DatasetBundle:
 class DatasetRegistry:
     """Loads a manifest and enforces the experiment's data-isolation contract."""
 
-    REQUIRED_COLUMNS = {"patch_id", "patch_path", "split", "label", "label_name", "slide_id"}
-
     @classmethod
     def load(cls, spec: DatasetSpec, check_files: bool = False) -> DatasetBundle:
         manifest = spec.manifest if spec.manifest.is_absolute() else spec.root / spec.manifest
@@ -32,7 +30,15 @@ class DatasetRegistry:
             raise FileNotFoundError(f"manifest not found: {manifest}")
         with manifest.open("r", encoding="utf-8-sig", newline="") as handle:
             reader = csv.DictReader(handle)
-            missing = cls.REQUIRED_COLUMNS.difference(reader.fieldnames or ())
+            required = {
+                spec.sample_id_column,
+                spec.path_column,
+                spec.split_column,
+                spec.label_column,
+                spec.label_name_column,
+                spec.patient_id_column,
+            }
+            missing = required.difference(reader.fieldnames or ())
             if missing:
                 raise ValueError(f"manifest missing columns: {sorted(missing)}")
             rows = tuple(dict(row) for row in reader)
@@ -44,12 +50,10 @@ class DatasetRegistry:
         label_counts = {name: 0 for name in spec.class_mapping}
         for row in rows:
             split_counts[row[spec.split_column]] += 1
-            label_counts[row["label_name"]] += 1
-        identity = [
-            (row[spec.sample_id_column], row[spec.split_column], row[spec.label_column])
-            for row in rows
-        ]
-        return DatasetBundle(spec, rows, split_counts, label_counts, stable_hash(identity))
+            label_counts[row[spec.label_name_column]] += 1
+        # Hash all manifest content in column-independent canonical form. Any change
+        # to paths, patient ownership, physical metadata, or labels changes identity.
+        return DatasetBundle(spec, rows, split_counts, label_counts, stable_hash(rows))
 
     @classmethod
     def _validate_rows(
@@ -63,7 +67,7 @@ class DatasetRegistry:
             seen.add(sample_id)
             if row[spec.split_column] not in spec.allowed_splits:
                 raise ValueError(f"invalid split for {sample_id}: {row[spec.split_column]}")
-            label_name = row["label_name"]
+            label_name = row[spec.label_name_column]
             if label_name not in spec.class_mapping:
                 raise ValueError(f"unknown label_name: {label_name}")
             if int(row[spec.label_column]) != spec.class_mapping[label_name]:
@@ -82,4 +86,3 @@ class DatasetRegistry:
                 raise ValueError(
                     f"patient/WSI leakage: {patient_id!r} occurs in {previous!r} and {split!r}"
                 )
-

@@ -45,3 +45,12 @@ def test_registry_rejects_patient_leakage(tmp_path):
     with pytest.raises(ValueError, match="leakage"):
         DatasetRegistry.load(_spec(tmp_path))
 
+
+def test_manifest_hash_changes_when_patient_metadata_changes(tmp_path):
+    row = {"patch_id": "a", "patch_path": "a.png", "split": "train", "label": "0",
+           "label_name": "normal", "slide_id": "p1"}
+    _write_manifest(tmp_path / "manifest.csv", [row])
+    first = DatasetRegistry.load(_spec(tmp_path)).manifest_hash
+    row["slide_id"] = "p2"
+    _write_manifest(tmp_path / "manifest.csv", [row])
+    assert DatasetRegistry.load(_spec(tmp_path)).manifest_hash != first

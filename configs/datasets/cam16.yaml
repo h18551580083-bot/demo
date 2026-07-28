@@ -9,4 +9,6 @@ sample_id_column: patch_id
 path_column: patch_path
 split_column: split
 label_column: label
-
+label_name_column: label_name
+license_note: "CAMELYON16 usage terms must be reviewed and recorded before formal P1."
+preprocessing_note: "Existing 256 px RGB patches; stride 128; source metadata preserved in sidecars."
