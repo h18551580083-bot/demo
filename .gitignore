@@ -1,0 +1,33 @@
+# Python bytecode and tool caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+
+# Local Python environments and secrets
+.venv/
+venv/
+env/
+.env
+.env.*
+!.env.example
+
+# Codex and editor-local state
+.codex_tmp/
+.codex_tmp_*/
+.idea/
+.vscode/
+
+# Local calibration outputs and CAM16 data packages
+artifacts/
+cam16_patch/
+
+# Binary working documents are not part of the versioned specification
+docs/*.docx
+
+# Operating-system metadata
+Thumbs.db
+Desktop.ini
