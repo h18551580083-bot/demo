@@ -44,6 +44,9 @@ The project studies simulation-only digital pathology tumor classification.
 
 - CAM16 is the primary development dataset.
 - Other pathology datasets are reserved for transfer evaluation.
+- The sole valid data input is an existing, already split patch data package.
+  Complete WSI files and any route that derives patches from them are outside the
+  project scope.
 - Public outcomes are patch-level and slide-level binary tumor classification.
 - The optical frontend is fixed and must not be trainable.
 - The intended processing path is:
@@ -988,6 +991,35 @@ Configuration must be explicit rather than hidden in source code.
   behavior are part of the acceptance audit identity. Any mismatch between the
   recorded identity and the executed comparator blocks acceptance.
 
+### 3.15 Approved `cam16-eval-v1` principles pending complete calculation contracts
+
+- The patch-level evaluation object is defined only by an immutable patch
+  manifest.
+- Labels, outcomes, tumor annotations, patch labels, and derived tumor-location
+  fields must not be used to screen or filter the existing patches before their
+  predictions are fixed for metric calculation.
+- Existing validated patches may be aggregated only by identifiers already present
+  in the current data package. A slide-level result requires an identifier declared
+  and validated as `slide_id`; a generic `group_id` result must remain group-level.
+  Such aggregation does not represent a complete WSI, coverage of all tissue
+  regions, a complete patch set, or patches produced by a uniform WSI candidate
+  algorithm.
+- `sigmoid(z_patch)` and any sigmoid-transformed aggregate output are called
+  **uncalibrated evaluation scores**. They must not be described as calibrated,
+  clinical, or natural-population probabilities.
+- The sole primary endpoint is slide-level AUROC.
+- Patch and slide decision thresholds are distinct and may use validation data
+  only. Each is selected by a fully frozen Youden algorithm; the exact candidate
+  set, arithmetic, tie handling, and exceptional cases remain unresolved until
+  separately approved.
+- Existing-patch manifest identity, slide aggregation, all metric and
+  calibration-estimation arithmetic, threshold candidates, and exceptional-case
+  handling require one unique auditable definition before `cam16-eval-v1` is
+  frozen.
+- These approved principles do not authorize training or evaluation. In
+  particular, the absent reliable patient-to-slide mapping keeps the patient-level
+  Phase 0 gate unmet.
+
 ### 3.1 Required Morlet generation interface
 
 The Phase 0 interface contract must distinguish:
@@ -1236,8 +1268,12 @@ by an agent:
 
 - loss definition and explicitly selected loss-internal precision, plus
   optimizer-state precision;
-- patch sampling, slide-level aggregation, decision threshold, calibration, and
-  evaluation metrics;
+- the remaining `cam16-eval-v1` calculation contract: existing-patch manifest
+  identity, training patch sampling, group or slide aggregation, complete Youden
+  candidate/tie/exception rules, calibration estimation, and exact metric
+  arithmetic. Uncalibrated-score terminology, validation-only separate
+  thresholds, and the slide-level AUROC primary endpoint are already approved in
+  principle;
 - training seeds, optimization budget, confidence-interval method, and final-once
   test gate;
 - transfer datasets, physical-scale adaptation, and transfer protocol.

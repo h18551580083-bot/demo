@@ -1361,3 +1361,46 @@ Still unresolved:
 This decision freezes one of the five blocking decision groups. It does not
 authorize implementation-dependent defaults, training, evaluation, or a phase
 transition.
+
+## 2026-08-03 — Approve the governing principles of `cam16-eval-v1`
+
+Approved in principle:
+
+- The primary patch-level evaluation object is defined by an immutable patch
+  manifest.
+- Labels, outcomes, tumor annotations, patch labels, and derived tumor-location
+  fields must not be used to screen or filter existing patches before their
+  predictions are fixed for metric calculation.
+- Existing validated patches may be aggregated only by identifiers already present
+  in the current data package. A slide-level result requires an identifier declared
+  and validated as `slide_id`; a generic `group_id` result must remain group-level.
+  Such aggregation does not represent a complete WSI, coverage of all tissue
+  regions, a complete patch set, or patches produced by a uniform WSI candidate
+  algorithm.
+- Sigmoid-transformed patch and aggregate outputs are called **uncalibrated
+  evaluation scores**. They are not clinical or natural-population probabilities.
+- Patch and slide thresholds are separate, use validation data only, and are
+  selected by a fully frozen Youden algorithm.
+- The sole primary endpoint is slide-level AUROC.
+- Every manifest identity calculation, metric, calibration estimate, threshold
+  candidate, tie rule, and exceptional case must have one unique auditable
+  computation definition before the protocol is frozen.
+- The missing reliable patient-to-slide mapping keeps the patient-level Phase 0
+  gate unmet. This decision does not authorize training or test evaluation.
+
+Still unresolved within this decision group:
+
+- Existing-patch manifest canonicalization and identity contracts.
+- Training patch sampling, group or slide aggregation, and any permitted
+  transformation policy.
+- Exact score-widening, metric, calibration-estimation, and undefined-case
+  arithmetic.
+- The complete validation Youden candidate set, operation order, tie handling,
+  and exceptional-case rules.
+
+Accordingly, `cam16-eval-v1` is **not yet frozen**, and this decision group does
+not yet count as the second completed blocking group.
+
+Historical governance note: the complete WSI candidate-generation route was
+withdrawn when the project data entry changed to an existing patch data package;
+it is no longer within the current project scope.

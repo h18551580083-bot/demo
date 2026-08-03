@@ -164,3 +164,9 @@ _Avoid_: Patient-level isolation, group-ID-level isolation
 The trainable digital head that maps the canonical 9408-coordinate pooled vector
 through one zero-initialized affine operation to one raw binary logit per patch.
 _Avoid_: MLP head, probability head, normalized classifier
+
+**Uncalibrated evaluation score**:
+The sigmoid transform of an approved raw logit used only for ranking and
+thresholded research evaluation, without a claim of clinical or natural-population
+probability.
+_Avoid_: Calibrated probability, clinical risk, population probability
