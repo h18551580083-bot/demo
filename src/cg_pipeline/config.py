@@ -284,13 +284,8 @@ def _validate_semantics(document: dict[str, Any]) -> None:
     if document["data"]["manifest_relpath"] != profile["manifest_relpath"]:
         raise ConfigError("data.manifest_relpath conflicts with the locked execution profile")
     mapping_evidence = document["data"]["patient_mapping_evidence"]
-    if mapping_evidence != "not_available" and not (
-        isinstance(mapping_evidence, str)
-        and mapping_evidence.startswith("sha256:")
-        and len(mapping_evidence) == 71
-        and all(character in "0123456789abcdef" for character in mapping_evidence[7:])
-    ):
-        raise ConfigError("patient mapping evidence must be not_available or a lowercase SHA-256")
+    if mapping_evidence != "not_available":
+        raise ConfigError("patient mapping evidence must remain not_available for CAM16 Phase 1")
     for (section, key), expected in _EXACT_VALUES.items():
         if document[section][key] != expected:
             raise ConfigError(f"{section}.{key} conflicts with the locked contract")

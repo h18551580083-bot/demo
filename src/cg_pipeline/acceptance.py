@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from .claims import audit_isolation_claim_payload, audit_isolation_claim_text
 from .config import load_experiment_config
 from .pipeline import _perform_preflight, _write_json_exclusive
 
@@ -20,8 +21,6 @@ class AcceptanceError(ValueError):
 
 
 _DECISION30_SHA256 = "fe0c0a3d704a2ae458e26e894ef82be0fddcdf13ad430ac5f483bf72b1836117"
-
-
 def _read_json(path: Path) -> dict[str, Any]:
     def pairs_hook(pairs):
         value: dict[str, Any] = {}
@@ -161,6 +160,18 @@ def _documentation_audit(repository: Path) -> dict[str, Any]:
         "docs/adr/0010-phase1-preregistered-baseline.md",
     ]
     missing = [path for path in required if not (repository / path).is_file()]
+    claim_paths = {
+        repository / "AGENTS.md",
+        repository / "CONTEXT.md",
+        repository / "README.md",
+        *(repository / "docs").rglob("*.md"),
+    }
+    forbidden_claims = [
+        str(path.relative_to(repository)).replace("\\", "/")
+        for path in sorted(claim_paths)
+        if path.is_file()
+        and audit_isolation_claim_text(path.read_text(encoding="utf-8"))["status"] == "FAIL"
+    ]
     specification = (repository / "docs" / "DEVELOPMENT_SPEC.md").read_text(encoding="utf-8")
     blocking_section = specification.split("## 6. Blocking unresolved decisions", 1)[-1].split(
         "## 7. Prohibited actions", 1
@@ -170,10 +181,13 @@ def _documentation_audit(repository: Path) -> dict[str, Any]:
         or "must not be inferred, defaulted, or selected" in blocking_section
     )
     return {
-        "status": "PASS" if not missing and not active_tbd else "FAIL",
+        "status": (
+            "PASS" if not missing and not active_tbd and not forbidden_claims else "FAIL"
+        ),
         "required_document_count": len(required),
         "missing": missing,
         "active_blocking_tbd": active_tbd,
+        "forbidden_patient_level_claims": forbidden_claims,
     }
 
 
@@ -186,8 +200,6 @@ def run_phase0_acceptance(
     dry_report_path: Path | str,
     decision30_report_path: Path | str,
     output_path: Path | str,
-    patient_mapping_path: Path | str | None,
-    patient_mapping_approval_path: Path | str | None = None,
 ) -> dict[str, Any]:
     root = Path(repository).resolve()
     config = load_experiment_config(config_path)
@@ -195,33 +207,23 @@ def run_phase0_acceptance(
         config,
         data_root=Path(data_root).resolve(),
         release_path=Path(release_path).resolve(),
-        patient_mapping_path=(
-            None if patient_mapping_path is None else Path(patient_mapping_path).resolve()
-        ),
-        patient_mapping_approval_path=(
-            None
-            if patient_mapping_approval_path is None
-            else Path(patient_mapping_approval_path).resolve()
-        ),
     )
     decision30 = audit_decision30_report(decision30_report_path)
     dry_report = _read_json(Path(dry_report_path))
+    dry_claim_audit = audit_isolation_claim_payload(dry_report)
     dry_pass = (
         dry_report.get("status") == "PASS"
         and dry_report.get("formal_experiment") is False
         and dry_report.get("test_split_accessed") is False
         and all(dry_report.get("steps", {}).values())
+        and dry_claim_audit["status"] == "PASS"
     )
     if not dry_pass:
         raise AcceptanceError("dry-run evidence does not pass its strict contract")
     tracked = audit_tracked_files(root)
     tests = _test_evidence(root)
     documents = _documentation_audit(root)
-    internal_preflight_failures = [
-        gate
-        for gate in preflight["blocking_gates"]
-        if gate not in {"patient_level_isolation", "phase0_release"}
-    ]
+    internal_preflight_failures = list(preflight["blocking_gates"])
     gates = [
         {
             "gate": "documentation_and_decision_freeze",
@@ -253,16 +255,10 @@ def run_phase0_acceptance(
         },
         {
             "gate": "patient_level_split_isolation",
-            "result": (
-                "PASS" if "patient_level_isolation" in preflight["passed_gates"] else "FAIL"
-            ),
-            "command": "python -m cg_pipeline preflight --patient-mapping <mapping.csv> ...",
+            "result": "NOT APPLICABLE",
+            "command": "not applicable to the CAM16 Phase 1 claim scope",
             "evidence": preflight["patient_mapping"],
-            "blocker": (
-                None
-                if "patient_level_isolation" in preflight["passed_gates"]
-                else "validated reliable patient-to-slide mapping not available"
-            ),
+            "blocker": None,
         },
         {
             "gate": "fixed_frontend_and_morlet_contract",
@@ -333,26 +329,16 @@ def run_phase0_acceptance(
             ),
         },
     ]
-    failed = [gate["gate"] for gate in gates if gate["result"] != "PASS"]
-    external_blockers = []
-    if "patient_level_split_isolation" in failed:
-        external_blockers.append(
-            {
-                "id": "EXT-PATIENT-MAPPING",
-                "minimum_input": (
-                    "A complete provenance-bearing CSV with exactly slide_id, patient_id, "
-                    "and provenance for every in-scope slide, plus an attributable "
-                    "provenance-reliability approval artifact bound to the mapping and "
-                    "source-manifest SHA-256 values."
-                ),
-                "reason": "patient identity cannot be inferred safely from slide_id or filenames",
-            }
-        )
+    failed = [gate["gate"] for gate in gates if gate["result"] == "FAIL"]
+    external_blockers: list[dict[str, Any]] = []
     report = {
         "schema": "phase0-total-acceptance-report-v1",
         "status": "PASS" if not failed else "FAIL",
         "phase0_closed": not failed,
         "formal_training_authorized": not failed,
+        "isolation_claim": preflight["isolation_claim"],
+        "patient_level_isolation": preflight["patient_level_isolation"],
+        "patient_level_claim_allowed": preflight["patient_level_claim_allowed"],
         "test_split_accessed": False,
         "config_hash": config.sha256,
         "preflight": preflight,
@@ -373,8 +359,6 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dry-report", type=Path, required=True)
     parser.add_argument("--decision30-report", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--patient-mapping", type=Path)
-    parser.add_argument("--patient-mapping-approval", type=Path)
     args = parser.parse_args(argv)
     try:
         report = run_phase0_acceptance(
@@ -385,8 +369,6 @@ def main(argv: list[str] | None = None) -> int:
             dry_report_path=args.dry_report,
             decision30_report_path=args.decision30_report,
             output_path=args.output,
-            patient_mapping_path=args.patient_mapping,
-            patient_mapping_approval_path=args.patient_mapping_approval,
         )
     except (AcceptanceError, OSError, RuntimeError, ValueError) as error:
         print(f"ERROR: {type(error).__name__}: {error}", file=sys.stderr)

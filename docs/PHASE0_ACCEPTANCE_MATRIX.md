@@ -13,7 +13,7 @@ acceptance remains separate from repository-wide Phase 0 closure.
 | 2 | Typed end-to-end contracts | `data.py`, `frontend.py`, `interaction.py`, `pooling.py`, `model.py`, `evaluation.py` | model/data/evaluation tables | module contract tests | exact axes, shapes, dtypes, masks, identities, logits, and predictions | full pytest report | **COMPLETE** |
 | 3 | Explicit strict configuration | `config.py`, `identity.py` | `configs/phase1_baseline.toml` | `pytest tests/test_pipeline_config.py -q` | all formal scientific values exact; missing/unknown/illegal/TBD/float/mutation/test access fail; normalized SHA-256 | preflight config hash | **COMPLETE** |
 | 4 | Existing-patch CAM16 adapter | `data.py` | data table | `pytest tests/test_data_contract.py -q` | exact CSV/PNG/path/label/disk inventory; no invalid-row exclusion | preflight manifest hashes/counts | **COMPLETE** |
-| 5 | Split-leakage check | `validate_manifest`, `validate_patient_mapping` | `identity_level = slide_id` | data tests and preflight | `slide_id` crossing fails; patient claim requires complete mapping plus independent provenance approval bound to mapping/source hashes | slide-ID report passes; patient mapping status `not_evaluated` | **EXTERNAL BLOCKER** |
+| 5 | Split-leakage check | `validate_manifest`, preflight release validation | `identity_level = slide_id`; release v2 patient state | data, config, and preflight negative tests | supplied `group_id`/`slide_id` crossing fails; exact permitted claim is `group_id/slide_id split isolation verified`; any patient-level safety claim fails | patient status `not_evaluated`; claim flag false; patient gate `NOT APPLICABLE` | **COMPLETE** |
 | 6 | Fixed-frontend non-trainability | `frontend.py`, `training.py` | fixed model/precision tables | model and training tests | zero optical Parameters; optimizer contains only 9473 backend scalars; bytes/hash unchanged after step | dry and preflight identity audits | **COMPLETE** |
 | 7 | Deterministic Morlet generator | `morlet.py` | locked model table | frontend and spectral tests | 32 canonical kernels, separate hashes, tolerance and all spectral gates, shared H/E tensor | fixed hash vectors and spectral report | **COMPLETE** |
 | 8 | Unit and negative tests | `tests/` | pytest/Ruff settings | `pytest tests -q` | all tests pass; no required skip converts failure to pass | consolidated acceptance report | **COMPLETE** |
@@ -21,9 +21,10 @@ acceptance remains separate from repository-wide Phase 0 closure.
 | 10 | Commands and evidence documentation | README, protocol docs, gap register, this matrix | command blocks | acceptance CLI | commands, evidence, failures, skips, assumptions, locked impact recorded | consolidated acceptance report | **COMPLETE** |
 | 11 | Decisions for all five groups | `docs/DECISIONS.md`, ADR 0010 | unique formal TOML | config/protocol tests | classifier, loss/optimizer, evaluation, training budget/CI/test gate, transfer disposition frozen | decision append and config hash | **COMPLETE** |
 
-Summary: **10 complete, 1 externally blocked**. All repository-internal Phase 0
-work is closed. Phase 0 itself remains open because the approved patient-level gate
-cannot be satisfied from `slide_id` alone.
+Summary: **11 complete, 0 blocked**. Patient-level isolation is outside the current
+CAM16 claim scope and is therefore `NOT APPLICABLE`, not a failed deliverable.
+Phase 0 is closed; formal CAM16 train/validation is release-authorized and final
+test access remains false.
 
 ## Mandatory gate commands
 
@@ -54,33 +55,15 @@ python -m cg_pipeline.acceptance `
   --output artifacts\phase0_total_acceptance.json
 ```
 
-The current preflight and total-acceptance commands must return failure with only
-`patient_level_isolation` and `phase0_release` blocked. This is correct fail-closed
-behavior, not a skipped check.
+The current preflight and total-acceptance commands must return `PASS`. Their
+machine-readable isolation state is:
 
-## Minimum external input and verification
+- `isolation_claim = "group_id/slide_id split isolation verified"`;
+- `patient_level_isolation = "not_evaluated"`;
+- `patient_level_claim_allowed = false`;
+- `patient_level_isolation` appears in `not_applicable_gates`, never in
+  `blocking_gates`.
 
-Supply (1) a local, untracked UTF-8 RFC 4180 CSV with exactly
-`slide_id,patient_id,provenance`, one row for every in-scope slide, no extra or
-duplicate slide, and no patient identity crossing train/validation/test; and
-(2) an attributable approval artifact that establishes the mapping provenance is
-reliable. The mapping raw SHA-256 must replace `data.patient_mapping_evidence` in
-a newly approved formal configuration. After review, `configs/phase0_release.json`
-must bind the mapping hash, source-manifest hash, approval-artifact hash, approver,
-timestamp, and `provenance_reliability_approved = true`, with no external blocker.
-The separate approval artifact is strict JSON with schema
-`patient-mapping-provenance-approval-v1` and the same mapping/source hashes,
-approver, timestamp, and approval Boolean. Then run:
-
-```powershell
-$env:PYTHONPATH = 'E:\cg\src'
-python -m cg_pipeline preflight `
-  --config <approved-config-with-mapping-sha256> `
-  --data-root cam16_patch `
-  --patient-mapping <local-untracked-patient-mapping.csv> `
-  --patient-mapping-approval <approved-provenance-artifact.json> `
-  --release configs\phase0_release.json `
-  --output artifacts\phase0_preflight_with_patient_mapping.json
-```
-
-Until that command passes, formal training and all test-split access are prohibited.
+A patient mapping or mapping-approval file is not a CAM16 Phase 1 release input.
+Supplying, inferring, or parsing a patient identity cannot upgrade the current
+claim. Final test access remains separately prohibited until its final-once gate.

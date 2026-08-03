@@ -23,15 +23,11 @@ def _parser() -> argparse.ArgumentParser:
     preflight.add_argument("--data-root", type=Path, required=True)
     preflight.add_argument("--release", type=Path, required=True)
     preflight.add_argument("--output", type=Path, required=True)
-    preflight.add_argument("--patient-mapping", type=Path)
-    preflight.add_argument("--patient-mapping-approval", type=Path)
 
     train = subparsers.add_parser("train", help="run formal train/validation after preflight")
     train.add_argument("--config", type=Path, required=True)
     train.add_argument("--data-root", type=Path, required=True)
     train.add_argument("--release", type=Path, required=True)
-    train.add_argument("--patient-mapping", type=Path)
-    train.add_argument("--patient-mapping-approval", type=Path)
     train.add_argument("--resume", action="store_true")
     return parser
 
@@ -49,8 +45,6 @@ def main(argv: list[str] | None = None) -> int:
                 data_root=args.data_root,
                 release_path=args.release,
                 output_path=args.output,
-                patient_mapping_path=args.patient_mapping,
-                patient_mapping_approval_path=args.patient_mapping_approval,
             )
             print(json.dumps({"status": report["status"], "blocking_gates": report["blocking_gates"]}))
             return 0 if report["status"] == "PASS" else 1
@@ -59,8 +53,6 @@ def main(argv: list[str] | None = None) -> int:
                 args.config,
                 data_root=args.data_root,
                 release_path=args.release,
-                patient_mapping_path=args.patient_mapping,
-                patient_mapping_approval_path=args.patient_mapping_approval,
                 resume=args.resume,
             )
             print(json.dumps({"status": "PASS", "runs": report["runs"]}))

@@ -17,6 +17,11 @@ import torch
 from PIL import Image, UnidentifiedImageError
 from torch.utils.data import DataLoader, Dataset, Sampler
 
+from .claims import (
+    GROUP_SLIDE_ISOLATION_CLAIM,
+    PATIENT_LEVEL_CLAIM_ALLOWED,
+    PATIENT_LEVEL_ISOLATION,
+)
 from .identity import domain_hash
 from .training import hash_epoch_order, worker_seed
 
@@ -55,7 +60,9 @@ class IsolationReport:
     identity_level: str
     identity_column: str
     cross_split_conflicts: int
-    patient_level_status: str
+    patient_level_isolation: str
+    patient_level_claim_allowed: bool
+    isolation_claim: str
     patient_mapping_evidence: str
 
 
@@ -257,7 +264,9 @@ def validate_manifest(
             identity_level="slide_id",
             identity_column="slide_id",
             cross_split_conflicts=0,
-            patient_level_status="not_evaluated",
+            patient_level_isolation=PATIENT_LEVEL_ISOLATION,
+            patient_level_claim_allowed=PATIENT_LEVEL_CLAIM_ALLOWED,
+            isolation_claim=GROUP_SLIDE_ISOLATION_CLAIM,
             patient_mapping_evidence="not_available",
         ),
         disk_inventory=disk_inventory,

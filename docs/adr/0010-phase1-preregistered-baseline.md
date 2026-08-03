@@ -11,6 +11,8 @@ logit slide aggregation. These are conservative preregistered starting values,
 not empirically established optima. Test access remains separately release-gated.
 
 Formal training always calls the same preflight used by the standalone command.
-The current release record remains closed because no validated reliable patient-
-to-slide mapping exists. No WSI input, candidate generation, physical deployment,
-stain normalization, adaptive optical parameter, or transfer dataset is added.
+The Phase 0 release is closed successfully and authorizes the frozen CAM16 Phase 1
+train/validation baseline. Patient-level isolation is `not_evaluated`, the patient-
+level claim flag is false, and no patient mapping or approval artifact is a release
+input. No WSI input, candidate generation, physical deployment, stain
+normalization, adaptive optical parameter, or transfer dataset is added.

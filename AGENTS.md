@@ -17,10 +17,12 @@
 
 ## Data rules
 
-- Prevent patient-level leakage.
-- Claim patient-level isolation only with a validated, reliable patient-to-slide
-  mapping. Otherwise report the exact supplied identifier level, such as
-  `group_id` or `slide_id`, and keep the patient-level Phase 0 gate unmet.
+- Prevent cross-split leakage at the declared `group_id`/`slide_id` level.
+- The current CAM16 study has no reliable patient-to-slide mapping and makes no
+  patient-level isolation claim. Record `patient_level_isolation = not_evaluated`
+  and `patient_level_claim_allowed = false`; do not infer patient identity from
+  filenames or identifiers. This non-evaluated patient-level property is not a
+  Phase 0 or formal-training blocker.
 - Never change dataset splits silently.
 - Never download datasets automatically.
 - Do not commit images, checkpoints, credentials, or patient metadata.

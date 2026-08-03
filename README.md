@@ -1,4 +1,4 @@
-# Fixed H/E Morlet pathology classifier — Phase 0
+# Fixed H/E Morlet pathology classifier — Phase 1 entry
 
 This simulation-only checkout implements the frozen fixed H/E first-order Morlet-
 modulus classifier, electronic interaction/backend, strict existing-patch adapter,
@@ -68,23 +68,22 @@ python -m cg_pipeline preflight `
 
 The dry run is synthetic and cannot support a performance claim. The formal
 configuration is a preregistered starting baseline, not an empirically established
-optimum. At the current checkout, preflight must fail before training because the
-package has no validated reliable patient-to-slide mapping or attributable
-provenance-reliability approval, and the Phase 0 release record is closed. See
-`docs/PHASE0_ACCEPTANCE_MATRIX.md` for the exact external
-input and revalidation command.
+optimum. Phase 0 is closed and preflight authorizes the frozen CAM16 Phase 1
+train/validation entry when every applicable gate passes. The only isolation
+statement is `group_id/slide_id split isolation verified`; machine-readable state
+remains `patient_level_isolation = not_evaluated` and
+`patient_level_claim_allowed = false`. Patient mapping and approval files are not
+preflight inputs.
 
 ## Formal training entry
 
-Do not execute while Phase 0 is open:
+Phase 0 is closed. The formal entry still runs preflight before the first batch:
 
 ```powershell
 $env:PYTHONPATH = 'E:\cg\src'
 python -m cg_pipeline train `
   --config configs\phase1_baseline.toml `
   --data-root cam16_patch `
-  --patient-mapping <approved-local-patient-mapping.csv> `
-  --patient-mapping-approval <approved-provenance-artifact.json> `
   --release configs\phase0_release.json
 ```
 

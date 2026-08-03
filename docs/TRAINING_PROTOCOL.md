@@ -67,16 +67,17 @@ the checkpoint-file hash, and restore recomputes the electronic model, optimizer
 and canonical fixed-front-end identities. Test rows are not loaded by training or
 validation.
 
-The entry remains forbidden until patient mapping structure/isolation passes, an
-attributable provenance-reliability approval is bound to the mapping and source-
-manifest hashes, and the explicit Phase 0 release record passes:
+The entry requires the explicit Phase 0 release record and all applicable preflight
+gates to pass. A patient mapping or mapping-approval file is not an input or
+prerequisite. Every preflight and training report records
+`group_id/slide_id split isolation verified`,
+`patient_level_isolation = not_evaluated`, and
+`patient_level_claim_allowed = false`:
 
 ```powershell
 $env:PYTHONPATH = 'E:\cg\src'
 python -m cg_pipeline preflight --config configs\phase1_baseline.toml `
   --data-root cam16_patch `
-  --patient-mapping <approved-local-patient-mapping.csv> `
-  --patient-mapping-approval <approved-provenance-artifact.json> `
   --release configs\phase0_release.json `
   --output artifacts\phase0_preflight.json
 ```

@@ -1523,3 +1523,52 @@ Implementation-audit addendum:
   match the frozen evaluation context.
   The authorization loader likewise reads a separate approval-evidence artifact
   and rechecks both artifact hashes at evaluation time.
+
+## 2026-08-03 — Correct the patient-level gate scope and close Phase 0
+
+Human authorization and scope review:
+
+- The current instruction explicitly freezes `slide_id` as no more than the
+  supplied `group_id`, limits the split guarantee to that identifier level, and
+  states that the CAM16 study does not require a patient-level performance or
+  isolation claim.
+- The repository's normative documents, ADRs, README, training/evaluation
+  protocols, and the hospital preliminary-cooperation proposal were reviewed for
+  an overriding ethics, paper-protocol, or data-use requirement.
+- The hospital proposal reserves patient grouping for future hospital/cross-domain
+  primary confirmatory analysis and says mapping absence permits only a slide-level
+  statement. Its ethics and data-use sections govern approval, de-identification,
+  access, and non-reidentification; they do not make a patient mapping a prerequisite
+  for the current simulation-only CAM16 Phase 1 baseline.
+
+Approved correction:
+
+- The previous patient-level Phase 0 blocker was an erroneous scope upgrade. It is
+  `NOT APPLICABLE`, not `FAIL`, for the current CAM16 Phase 0 acceptance and Phase 1
+  formal train/validation preflight.
+- The only permitted isolation statement is
+  `group_id/slide_id split isolation verified`.
+- Machine-readable state is frozen as
+  `patient_level_isolation = not_evaluated` and
+  `patient_level_claim_allowed = false`.
+- No code, configuration, report, filename convention, or identifier syntax may
+  infer, fabricate, or parse patient identity. A patient mapping and its approval
+  artifact are not preflight or release inputs.
+- Any attempt to enable a patient-level claim, mark patient-level isolation as
+  verified, or publish that safety statement must fail validation. A future study
+  that actually requires a patient-level claim must obtain a separately approved,
+  reliable mapping and a new scoped decision; that future requirement does not
+  reopen this Phase 0 gate.
+
+Release disposition:
+
+- `configs/phase0_release.json` schema v2 records `phase0_closed = true`,
+  `formal_training_authorized = true`, no external blocker, the frozen patient
+  state above, and `test_access_authorized = false`.
+- With every other acceptance gate passing, Phase 0 is closed and the preregistered
+  CAM16 Phase 1 train/validation entry is authorized. No formal training or test
+  evaluation is executed by this decision itself.
+- This decision supersedes earlier 2026-08-03 statements that patient mapping was
+  an external Phase 0 blocker, that the patient-level gate remained unmet, or that
+  the release had to remain closed for that reason. Historical text remains as an
+  audit trail but is no longer normative.

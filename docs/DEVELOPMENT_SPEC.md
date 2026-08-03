@@ -18,11 +18,11 @@ documentation must conform to it.
 
 ## 2. Current phase
 
-**Current phase: Phase 0 — specification baseline and interface contracts**
+**Current phase: Phase 1 entry — preregistered CAM16 baseline training**
 
-**Status: active; all repository-internal Phase 0 work is complete, but the Phase 0
-acceptance gate has not passed because reliable patient-to-slide mapping evidence
-is not available.**
+**Status: Phase 0 closed on 2026-08-03 after the total-acceptance gate passed.
+Formal CAM16 train/validation execution is release-authorized; final test access
+and transfer evaluation remain separately closed.**
 
 The purpose of this phase is to turn the approved research architecture into
 reviewable and executable contracts. Under the explicit 2026-08-03 autonomous
@@ -37,10 +37,11 @@ closure authorization recorded in `docs/DECISIONS.md`, work in this phase may:
 - inspect local metadata and validate an explicitly supplied split manifest without
   moving samples or changing split membership.
 
-This phase does **not** authorize formal model training, comparative experiments,
-test-set evaluation, or transfer evaluation. The synthetic dry run is explicitly
-non-formal. Formal training remains fail-closed until the patient-level isolation
-gate and `configs/phase0_release.json` both pass.
+Phase 0 did **not** itself authorize formal model training, comparative experiments,
+test-set evaluation, or transfer evaluation. The synthetic dry run remains
+explicitly non-formal. The current `configs/phase0_release.json` authorizes only the
+frozen Phase 1 CAM16 train/validation baseline after preflight passes; final test
+and transfer evaluation remain prohibited.
 
 ## 3. Locked project scope
 
@@ -1030,8 +1031,9 @@ Configuration must be explicit rather than hidden in source code.
 - Test access requires a separate final-once authorization naming the frozen
   config, code, data, checkpoint, and validation-threshold identities. The current
   release record keeps test access false.
-- The absent reliable patient-to-slide mapping still keeps the patient-level Phase
-  0 gate unmet. No evaluation is authorized during the current Phase 0 work.
+- CAM16 split evidence is limited to `group_id/slide_id split isolation verified`.
+  Patient-level isolation is `not_evaluated`, patient-level claims are forbidden,
+  and this non-applicable property is not a Phase 0 or formal-training blocker.
 
 ### 3.1 Required Morlet generation interface
 
@@ -1070,9 +1072,10 @@ Phase 0 is complete only when all of the following artifacts exist and agree:
    additionally requires a reliable patient-to-slide mapping with recorded
    provenance, in-scope mapping coverage, and assignment-consistency validation.
 5. A leakage check that fails when one identity at the explicitly declared level
-   occurs in more than one split, reports that level without upgrading the claim,
-   and fails the patient-level gate unless the declared identity is supported by
-   a reliable patient-to-slide mapping.
+   occurs in more than one split and reports
+   `group_id/slide_id split isolation verified` without upgrading the claim.
+   Patient-level isolation is recorded as `not_evaluated` and the patient-level
+   check is `NOT APPLICABLE` to Phase 0 acceptance.
 6. A fixed-frontend check proving that no optical-frontend value is registered as a
    trainable parameter or changed by an optimizer step.
 7. A deterministic Morlet-generator contract with separate parameter-specification
@@ -1103,12 +1106,13 @@ The gate is **closed by default**. It passes only when:
 - all unit tests for changed modules pass;
 - the project smoke test passes;
 - no test, fixture, or configuration supplies a hidden or unresolved value;
-- patient-level split isolation is demonstrated from the approved split manifest
-  only when a reliable patient-to-slide mapping exists and its provenance,
-  in-scope mapping coverage, and assignment consistency have been verified.
-  Without that evidence, the strongest permitted claim is the exact supplied
-  identifier level, such as `group_id` or `slide_id`, and the patient-level gate
-  remains unmet;
+- the supplied `group_id`/`slide_id` split isolation check passes with no
+  cross-split identifier conflict;
+- the machine-readable patient fields are exactly
+  `patient_level_isolation = not_evaluated` and
+  `patient_level_claim_allowed = false`; the patient-level gate result is
+  `NOT APPLICABLE`, not `FAIL`, and no patient identity is inferred from filenames
+  or identifiers;
 - the optical frontend is demonstrated to be non-trainable and unchanged during a
   backend optimization step;
 - every discrete Morlet kernel passes the approved discrete zero-DC tolerance and
@@ -1272,8 +1276,9 @@ The gate is **closed by default**. It passes only when:
 - a human reviews the evidence and explicitly approves entry into the next phase in
   `docs/DECISIONS.md`.
 
-Until every condition is satisfied, the repository remains in Phase 0. Agents must
-report the unmet conditions and must not begin the next phase.
+These conditions were satisfied and the human-approved Phase 0 closure was recorded
+on 2026-08-03. Later phases and final-test access still require their own explicit
+scope and authorization; Phase 0 closure does not authorize them implicitly.
 
 ## 6. Blocking decision groups and current disposition
 
@@ -1296,13 +1301,10 @@ authorization. Executable values occur only in `configs/phase1_baseline.toml`:
    preregistration and do not authorize transfer work now.
 
 These are conservative preregistered starting values, not empirically demonstrated
-optima. No repository-internal blocking `TBD` remains. One external acceptance
-dependency remains: a reliable provenance-bearing patient-to-slide mapping with
-complete in-scope coverage and cross-split assignment-consistency validation,
-plus an attributable provenance-reliability approval artifact bound to the exact
-mapping and source-manifest SHA-256 values.
-Without it, patient-level isolation is `not_evaluated`, the Phase 0 gate stays
-closed, and formal training is prohibited.
+optima. No repository-internal or external Phase 0 blocker remains. A patient-to-
+slide mapping and mapping-approval artifact are not release inputs for the current
+CAM16 Phase 1 baseline. Patient-level isolation remains `not_evaluated` and no
+patient-level claim is allowed.
 
 ## 7. Prohibited actions
 
@@ -1316,7 +1318,10 @@ changed through explicit human approval:
 - representing the work as a clinical system or making clinical-performance claims;
 - using a transfer-evaluation dataset for development, tuning, model selection, or
   threshold selection;
-- allowing patient-level leakage across training, validation, or test splits;
+- allowing a supplied `group_id` or `slide_id` to cross training, validation, or
+  test splits;
+- asserting patient-level leakage protection or isolation without a separately
+  approved, reliable patient-to-slide mapping;
 - changing, regenerating, or rebalancing dataset splits silently;
 - downloading any dataset automatically;
 - committing pathology images, checkpoints, credentials, secrets, or patient
@@ -1347,9 +1352,9 @@ During Phase 0, the following are additionally prohibited:
   may be called patient-level only when supported by a reliable patient-to-slide
   mapping; otherwise it must be reported at the exact supplied identifier level,
   such as `group_id` or `slide_id`, without implying patient-level protection.
-- A `slide_id` must not be treated as or renamed to `patient_id` by default. A
-  supplied `group_id` satisfies the patient-level gate only when evidence verifies
-  that it represents patient identity for every in-scope record.
+- A `slide_id` must not be treated as or renamed to `patient_id`; in the current
+  CAM16 package it denotes only `group_id`. Patient identity must not be inferred
+  from filenames or identifier syntax.
 - Split validation must occur before feature extraction, training, or evaluation.
 - Split membership must be supplied explicitly; dataset adapters must not invent a
   split.

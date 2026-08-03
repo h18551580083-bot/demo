@@ -5,9 +5,10 @@
 Evaluation consumes only an immutable existing-patch manifest and an immutable
 prediction ledger. It never reads a WSI, generates a candidate patch, claims full-
 slide tissue coverage, or screens a row using labels, annotations, tumor location,
-quality scores, or model output. Results are slide-ID-level unless an external
-patient mapping separately passes provenance, complete coverage, and cross-split
-consistency validation.
+quality scores, or model output. The sole split-isolation statement for the current
+CAM16 study is `group_id/slide_id split isolation verified`. Patient-level
+isolation is `not_evaluated` and `patient_level_claim_allowed = false`; no patient
+identity is inferred or consumed by this protocol.
 
 Binary target `1` is tumor and `0` is normal. Model output is one finite float32 raw
 logit per patch. Sigmoid values are called uncalibrated evaluation scores and are

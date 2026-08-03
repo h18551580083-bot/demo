@@ -87,11 +87,41 @@ def test_manifest_contract_reports_exact_slide_level_and_disk_identity(tmp_path:
     assert bundle.label_counts == {"normal": 1, "tumor": 1}
     assert bundle.isolation.identity_level == "slide_id"
     assert bundle.isolation.cross_split_conflicts == 0
-    assert bundle.isolation.patient_level_status == "not_evaluated"
+    assert bundle.isolation.patient_level_isolation == "not_evaluated"
+    assert bundle.isolation.patient_level_claim_allowed is False
+    assert bundle.isolation.isolation_claim == (
+        "group_id/slide_id split isolation verified"
+    )
     assert bundle.isolation.patient_mapping_evidence == "not_available"
     assert bundle.source_manifest_sha256.startswith("sha256:")
     assert set(bundle.effective_split_hashes) == {"train", "val", "test"}
     assert bundle.disk_inventory == {"manifest_png_count": 2, "disk_png_count": 2}
+
+
+def test_manifest_does_not_infer_patient_identity_from_identifier_syntax(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "package"
+    rows = _rows()
+    rows[0]["slide_id"] = "patient-like-prefix-slide-a"
+    rows[1]["slide_id"] = "patient-like-prefix-slide-b"
+    rows[0]["patch_id"] = "patient-like-prefix-patch-a"
+    rows[1]["patch_id"] = "patient-like-prefix-patch-b"
+    rows[0]["patch_path"] = "patches/train/normal/patient-like-prefix-patch-a.png"
+    rows[1]["patch_path"] = "patches/val/tumor/patient-like-prefix-patch-b.png"
+    for row in rows:
+        _png(root / Path(row["patch_path"]))
+
+    bundle = validate_manifest(
+        root,
+        _manifest(root, rows),
+        check_files=True,
+        reconcile_disk=True,
+    )
+
+    assert bundle.isolation.cross_split_conflicts == 0
+    assert bundle.isolation.patient_level_isolation == "not_evaluated"
+    assert bundle.isolation.patient_level_claim_allowed is False
 
 
 @pytest.mark.parametrize(

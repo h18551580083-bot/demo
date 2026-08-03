@@ -135,6 +135,13 @@ def test_config_is_strict_normalized_and_hashed(tmp_path: Path) -> None:
         (lambda text: text.replace('gradient_clip = "none"', 'gradient_clip = "TBD"'), "TBD"),
         (lambda text: text.replace('learning_rate = "0.001"', "learning_rate = 0.001"), "floating"),
         (lambda text: text.replace("allow_test = false", "allow_test = true"), "test access"),
+        (
+            lambda text: text.replace(
+                'patient_mapping_evidence = "not_available"',
+                'patient_mapping_evidence = "sha256:' + "0" * 64 + '"',
+            ),
+            "must remain not_available",
+        ),
     ],
 )
 def test_config_rejects_unknown_missing_tbd_float_and_test_access(

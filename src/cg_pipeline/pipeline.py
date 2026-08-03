@@ -16,6 +16,12 @@ import numpy as np
 import torch
 from PIL import Image
 
+from .claims import (
+    PATIENT_LEVEL_CLAIM_ALLOWED,
+    PATIENT_LEVEL_ISOLATION,
+    audit_isolation_claim_payload,
+    isolation_claim_fields,
+)
 from .config import ExperimentConfig, load_experiment_config
 from .data import (
     DataContractError,
@@ -23,7 +29,6 @@ from .data import (
     PatchDataset,
     build_dataloader,
     validate_manifest,
-    validate_patient_mapping,
 )
 from .evaluation import (
     AuthorizedEvaluationRow,
@@ -55,6 +60,9 @@ _REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _write_json_exclusive(path: Path, value: dict[str, Any]) -> None:
+    claim_audit = audit_isolation_claim_payload(value)
+    if claim_audit["status"] != "PASS":
+        raise ValueError(f"unsafe patient-level claim in report: {claim_audit['forbidden_claims']}")
     path.parent.mkdir(parents=True, exist_ok=True)
     text = json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2, allow_nan=False) + "\n"
     with path.open("x", encoding="utf-8", newline="\n") as handle:
@@ -98,89 +106,32 @@ def _validate_release_record(value: dict[str, Any]) -> None:
         "phase0_closed",
         "formal_training_authorized",
         "external_blockers",
-        "minimum_external_input",
-        "patient_mapping_approval",
+        "patient_level_isolation",
+        "patient_level_claim_allowed",
         "test_access_authorized",
     }
     if set(value) != expected:
-        raise Phase0BlockedError("release record fields do not match phase0-release-v1")
-    if value["schema"] != "phase0-release-v1":
-        raise Phase0BlockedError("release record schema is not phase0-release-v1")
+        raise Phase0BlockedError("release record fields do not match phase0-release-v2")
+    if value["schema"] != "phase0-release-v2":
+        raise Phase0BlockedError("release record schema is not phase0-release-v2")
     if any(
         not isinstance(value[key], bool)
-        for key in ("phase0_closed", "formal_training_authorized", "test_access_authorized")
+        for key in (
+            "phase0_closed",
+            "formal_training_authorized",
+            "patient_level_claim_allowed",
+            "test_access_authorized",
+        )
     ):
         raise Phase0BlockedError("release authorization fields must be Boolean")
     if not isinstance(value["external_blockers"], list) or any(
         not isinstance(item, str) or not item for item in value["external_blockers"]
     ):
         raise Phase0BlockedError("release external_blockers must be an array of nonempty strings")
-    if not isinstance(value["minimum_external_input"], str) or not value["minimum_external_input"]:
-        raise Phase0BlockedError("release minimum_external_input must be nonempty")
-    approval = value["patient_mapping_approval"]
-    if approval is None:
-        return
-    approval_fields = {
-        "schema",
-        "mapping_sha256",
-        "source_manifest_sha256",
-        "approval_evidence_sha256",
-        "approved_by",
-        "approved_at",
-        "provenance_reliability_approved",
-    }
-    if not isinstance(approval, dict) or set(approval) != approval_fields:
-        raise Phase0BlockedError("patient mapping approval fields are incomplete or unknown")
-    if approval["schema"] != "patient-mapping-approval-v1":
-        raise Phase0BlockedError("patient mapping approval schema is invalid")
-    if any(
-        not _is_sha256(approval[key])
-        for key in ("mapping_sha256", "source_manifest_sha256", "approval_evidence_sha256")
-    ):
-        raise Phase0BlockedError("patient mapping approval identities must be lowercase SHA-256")
-    if any(not isinstance(approval[key], str) or not approval[key] for key in ("approved_by", "approved_at")):
-        raise Phase0BlockedError("patient mapping approval attribution must be nonempty")
-    if approval["provenance_reliability_approved"] is not True:
-        raise Phase0BlockedError("patient mapping provenance reliability is not approved")
-
-
-def _mapping_approval_matches(
-    release: dict[str, Any],
-    mapping_evidence: dict[str, Any],
-    bundle: ManifestBundle,
-    approval_evidence_path: Path | None,
-) -> bool:
-    approval = release["patient_mapping_approval"]
-    if not isinstance(approval, dict) or approval_evidence_path is None:
-        return False
-    evidence = _read_json_strict(approval_evidence_path)
-    expected_fields = {
-        "schema",
-        "mapping_sha256",
-        "source_manifest_sha256",
-        "approved_by",
-        "approved_at",
-        "provenance_reliability_approved",
-    }
-    if set(evidence) != expected_fields:
-        raise Phase0BlockedError("patient mapping approval artifact fields are incomplete or unknown")
-    if evidence["schema"] != "patient-mapping-provenance-approval-v1":
-        raise Phase0BlockedError("patient mapping approval artifact schema is invalid")
-    try:
-        artifact_sha256 = raw_sha256(approval_evidence_path.read_bytes())
-    except OSError as error:
-        raise Phase0BlockedError("patient mapping approval artifact is unavailable") from error
-    return bool(
-        artifact_sha256 == approval["approval_evidence_sha256"]
-        and evidence["mapping_sha256"] == approval["mapping_sha256"]
-        and evidence["source_manifest_sha256"] == approval["source_manifest_sha256"]
-        and evidence["approved_by"] == approval["approved_by"]
-        and evidence["approved_at"] == approval["approved_at"]
-        and evidence["provenance_reliability_approved"] is True
-        and approval["mapping_sha256"] == mapping_evidence["mapping_sha256"]
-        and approval["source_manifest_sha256"] == bundle.source_manifest_sha256
-        and approval["provenance_reliability_approved"] is True
-    )
+    if value["patient_level_isolation"] != PATIENT_LEVEL_ISOLATION:
+        raise Phase0BlockedError("patient-level isolation must remain not_evaluated")
+    if value["patient_level_claim_allowed"] is not PATIENT_LEVEL_CLAIM_ALLOWED:
+        raise Phase0BlockedError("patient-level claim is not allowed")
 
 
 def _runtime_path(base: Path, relative: str) -> Path:
@@ -523,6 +474,7 @@ def run_dry_run(
         "formal_experiment": False,
         "performance_claim_permitted": False,
         "test_split_accessed": False,
+        **isolation_claim_fields(),
         "config_hash": config.sha256,
         "normalized_config_sha256": config.sha256,
         "source_manifest_sha256": bundle.source_manifest_sha256,
@@ -570,12 +522,11 @@ def _perform_preflight(
     *,
     data_root: Path,
     release_path: Path,
-    patient_mapping_path: Path | None,
-    patient_mapping_approval_path: Path | None = None,
 ) -> tuple[dict[str, Any], ManifestBundle]:
     if config.execution_kind != "formal_train":
         raise ValueError("preflight requires execution.kind=formal_train")
     passed = ["configuration"]
+    not_applicable = ["patient_level_isolation"]
     blocked: list[str] = []
     manifest = data_root / Path(*PurePosixPath(str(config.data["manifest_relpath"])).parts)
     bundle = validate_manifest(data_root, manifest, check_files=True, reconcile_disk=True)
@@ -583,29 +534,9 @@ def _perform_preflight(
     release = _read_json_strict(release_path)
     _validate_release_record(release)
     mapping_evidence: dict[str, Any] = {
-        "status": "not_evaluated",
-        "reason": "reliable patient-to-slide mapping not supplied",
+        "status": PATIENT_LEVEL_ISOLATION,
+        "reason": "patient identity is outside the CAM16 Phase 1 claim scope",
     }
-    if patient_mapping_path is not None:
-        mapping_evidence = validate_patient_mapping(bundle, patient_mapping_path)
-        configured_hash = str(config.data["patient_mapping_evidence"])
-        if mapping_evidence["mapping_sha256"] != configured_hash:
-            blocked.append("patient_level_isolation")
-            mapping_evidence["status"] = "identity_mismatch"
-        elif not _mapping_approval_matches(
-            release, mapping_evidence, bundle, patient_mapping_approval_path
-        ):
-            blocked.append("patient_level_isolation")
-            mapping_evidence["status"] = "provenance_approval_missing_or_mismatched"
-        else:
-            mapping_evidence["status"] = "validated_reliable"
-            mapping_evidence["provenance_reliability"] = "approved"
-            mapping_evidence["approval_evidence_sha256"] = release[
-                "patient_mapping_approval"
-            ]["approval_evidence_sha256"]
-            passed.append("patient_level_isolation")
-    else:
-        blocked.append("patient_level_isolation")
     seed_audit = configure_determinism(int(config.training["seeds"][0]))
     device = torch.device(str(config.execution["device"]))
     if device.type == "cuda" and not torch.cuda.is_available():
@@ -629,11 +560,12 @@ def _perform_preflight(
     else:
         blocked.append("test_access_disabled")
     if (
-        "patient_level_isolation" in passed
-        and release["phase0_closed"] is True
+        release["phase0_closed"] is True
         and release["formal_training_authorized"] is True
         and release["test_access_authorized"] is False
         and release["external_blockers"] == []
+        and release["patient_level_isolation"] == PATIENT_LEVEL_ISOLATION
+        and release["patient_level_claim_allowed"] is PATIENT_LEVEL_CLAIM_ALLOWED
     ):
         passed.append("phase0_release")
     else:
@@ -650,6 +582,7 @@ def _perform_preflight(
         "label_counts": bundle.label_counts,
         "disk_inventory": bundle.disk_inventory,
         "isolation": asdict(bundle.isolation),
+        **isolation_claim_fields(),
         "patient_mapping": mapping_evidence,
         "fixed_frontend_identity": fixed_identity,
         "morlet_spectral_coverage": spectral_coverage,
@@ -658,6 +591,7 @@ def _perform_preflight(
         "configured_device": str(config.execution["device"]),
         "effective_preflight_device": str(device),
         "passed_gates": passed,
+        "not_applicable_gates": not_applicable,
         "blocking_gates": blocked,
         "training_started": False,
         "test_split_accessed": False,
@@ -671,22 +605,12 @@ def run_preflight(
     data_root: Path | str,
     release_path: Path | str,
     output_path: Path | str,
-    patient_mapping_path: Path | str | None,
-    patient_mapping_approval_path: Path | str | None = None,
 ) -> dict[str, Any]:
     config = load_experiment_config(config_path)
     report, _ = _perform_preflight(
         config,
         data_root=Path(data_root).resolve(),
         release_path=Path(release_path).resolve(),
-        patient_mapping_path=(
-            None if patient_mapping_path is None else Path(patient_mapping_path).resolve()
-        ),
-        patient_mapping_approval_path=(
-            None
-            if patient_mapping_approval_path is None
-            else Path(patient_mapping_approval_path).resolve()
-        ),
     )
     _write_json_exclusive(Path(output_path), report)
     return report
@@ -770,6 +694,7 @@ def _run_formal_seed(
         "source_manifest_sha256": bundle.source_manifest_sha256,
         "effective_split_hashes": bundle.effective_split_hashes,
         "fixed_frontend_identity": fixed_identity,
+        **isolation_claim_fields(),
         "seed": seed,
     }
     start_epoch = 0
@@ -876,8 +801,6 @@ def run_formal_training(
     *,
     data_root: Path | str,
     release_path: Path | str,
-    patient_mapping_path: Path | str | None,
-    patient_mapping_approval_path: Path | str | None = None,
     resume: bool = False,
 ) -> dict[str, Any]:
     """Run the frozen train/validation protocol only after every preflight gate passes."""
@@ -887,14 +810,6 @@ def run_formal_training(
         config,
         data_root=Path(data_root).resolve(),
         release_path=Path(release_path).resolve(),
-        patient_mapping_path=(
-            None if patient_mapping_path is None else Path(patient_mapping_path).resolve()
-        ),
-        patient_mapping_approval_path=(
-            None
-            if patient_mapping_approval_path is None
-            else Path(patient_mapping_approval_path).resolve()
-        ),
     )
     if report["status"] != "PASS":
         raise Phase0BlockedError(
@@ -938,6 +853,7 @@ def run_formal_training(
                 "status": "failed",
                 "failure_reason": f"{type(error).__name__}: {error}",
                 "automatic_retry": False,
+                **isolation_claim_fields(),
             }
             failure_path = output_base / f"seed-{seed}-failure.json"
             if not failure_path.exists():
@@ -954,6 +870,7 @@ def run_formal_training(
         "config_hash": config.sha256,
         "code_identity": _source_code_identity(),
         "source_manifest_sha256": bundle.source_manifest_sha256,
+        **isolation_claim_fields(),
         "runs": run_results,
         "multi_seed_validation_slide_auroc": aggregation,
         "test_split_accessed": False,

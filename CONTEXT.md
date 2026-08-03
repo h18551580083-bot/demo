@@ -162,6 +162,15 @@ it does not establish patient-level isolation without a reliable patient-to-slid
 mapping.
 _Avoid_: Patient-level isolation, group-ID-level isolation
 
+**Current CAM16 group/slide isolation claim**:
+For the current existing-patch package only, `slide_id` is defined as the supplied
+`group_id` rather than as patient identity. The frozen report statement is exactly
+`group_id/slide_id split isolation verified`; it means exact-identifier isolation
+at this declared alias level and does not merge the two general glossary concepts.
+Patient-level isolation remains `not_evaluated` and no patient-level claim is
+allowed.
+_Avoid_: Patient identity, patient-level isolation, inferred filename grouping
+
 **Linear-logit primary classifier**:
 The trainable digital head that maps the canonical 9408-coordinate pooled vector
 through one zero-initialized affine operation to one raw binary logit per patch.
