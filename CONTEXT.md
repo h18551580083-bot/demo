@@ -141,7 +141,9 @@ _Avoid_: Bitwise oracle, device-local reference, implementation default
 **Reliable patient-to-slide mapping**:
 An externally supplied mapping whose provenance, in-scope mapping coverage, and
 patient assignment consistency have been verified before it is used to support
-an isolation claim.
+an isolation claim. Structural CSV validation alone is insufficient: an
+attributable provenance-reliability approval must bind the mapping and source-
+manifest identities.
 _Avoid_: Filename-inferred patient identity, assumed patient mapping
 
 **Patient-level split isolation**:
@@ -170,3 +172,20 @@ The sigmoid transform of an approved raw logit used only for ranking and
 thresholded research evaluation, without a claim of clinical or natural-population
 probability.
 _Avoid_: Calibrated probability, clinical risk, population probability
+
+**Manifest-bounded slide score**:
+The maximum raw patch logit among the immutable existing-patch manifest rows that
+share one validated `slide_id`; it summarizes only those rows and makes no claim of
+complete WSI or all-tissue coverage.
+_Avoid_: WSI score, complete-slide inference, group score
+
+**Preregistered starting baseline**:
+The single machine-validated Phase 1 configuration frozen before formal training;
+it is a reproducible starting point and not an empirically demonstrated optimum.
+_Avoid_: Optimal parameters, tuned baseline, implementation defaults
+
+**Final-once test gate**:
+A separate human authorization that binds the already frozen configuration, code,
+data, checkpoint, and validation thresholds before any test prediction ledger is
+created.
+_Avoid_: Automatic test evaluation, validation gate, repeated test access

@@ -8,8 +8,14 @@ version = "0.1.0"
 description = "Decision 30 cross-device numerical-equivalence acceptance gate"
 requires-python = ">=3.10"
 dependencies = [
+  "numpy>=1.24",
+  "Pillow>=10",
+  "tomli>=2; python_version < '3.11'",
   "torch>=2.1",
 ]
+
+[project.scripts]
+cg-pipeline = "cg_pipeline.__main__:main"
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.5"]

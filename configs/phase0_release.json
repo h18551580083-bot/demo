@@ -1,0 +1,11 @@
+{
+  "schema": "phase0-release-v1",
+  "phase0_closed": false,
+  "formal_training_authorized": false,
+  "external_blockers": [
+    "A validated reliable patient-to-slide mapping is not available."
+  ],
+  "minimum_external_input": "A complete patient-to-slide mapping plus an attributable approval artifact establishing provenance reliability; both must be SHA-256-bound to the approved source manifest.",
+  "patient_mapping_approval": null,
+  "test_access_authorized": false
+}

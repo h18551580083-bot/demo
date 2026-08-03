@@ -1404,3 +1404,122 @@ not yet count as the second completed blocking group.
 Historical governance note: the complete WSI candidate-generation route was
 withdrawn when the project data entry changed to an existing patch data package;
 it is no longer within the current project scope.
+
+## 2026-08-03 — Freeze all remaining repository-internal Phase 0 decisions
+
+Authorization:
+
+- The human attached a long-line autonomous closure instruction that explicitly
+  authorizes conservative decisions for all repository-internal Phase 0 `TBD`
+  groups without pausing for item-by-item approval.
+- This approval does not supply or validate a patient-to-slide mapping and does not
+  authorize an automatic phase transition, formal training, or test access.
+
+Approved loss and optimizer contract:
+
+- The formal loss is mean binary cross entropy with raw logits, evaluated in
+  float32 with no class weight, sample weight, label smoothing, focal term, or
+  probability pre-conversion.
+- The optimizer is AdamW with float32 parameter, gradient, and state tensors;
+  learning rate `0.001`, betas `(0.9, 0.999)`, epsilon `0.00000001`, and weight
+  decay `0.0001`. There is no learning-rate scheduler.
+- Every one of the 9473 electronic parameters appears exactly once in the
+  optimizer and no optical value appears. AMP, gradient scaling, TF32, float16,
+  bfloat16, and gradient clipping are absent.
+
+Approved training baseline:
+
+- Each training-manifest row is used exactly once per epoch in the frozen
+  SHA-256 keyed order. The baseline uses no resampling, weighting, augmentation,
+  stochastic image transform, or dropped partial batch.
+- Batch size is 4, the maximum is 20 epochs, and early stopping monitors validation
+  slide AUROC with patience 5 and minimum improvement 0.
+- An immutable checkpoint is saved after every complete epoch. The checkpoint with
+  greatest validation slide AUROC is selected; an exact tie selects the earliest
+  epoch. Resume is explicit and accepts only the latest complete checkpoint with
+  exact config, code, data, kernel, and seed identities.
+- Formal seeds are `1729`, `3407`, and `7919`. A failed seed is recorded and
+  excluded without automatic retry or replacement. Valid results report each seed,
+  their arithmetic mean, and their sample standard deviation.
+- These values are the preregistered Phase 1 starting baseline. They have not been
+  shown by training or model selection to be optimal.
+
+Approved `cam16-eval-v1` calculation contract:
+
+- The existing-patch CSV, disk inventory, and immutable prediction ledger fail
+  closed on missing, extra, duplicate, conflicting, escaping, or non-finite data.
+  No row is screened by labels, annotations, tumor location, quality, or output.
+- A slide score is the maximum finite raw float32 patch logit among manifest rows
+  for that `slide_id`. It is explicitly manifest-bounded and is not complete WSI
+  inference. A generic group cannot be relabeled as a slide or patient.
+- Slide AUROC is the sole primary endpoint and patch AUROC is secondary. Both use
+  exact Mann-Whitney win/tie counts on raw float32 logits.
+- Patch and slide thresholds are independently fit on validation distinct logits.
+  Prediction is `z >= t`; maximum exact Youden J wins and the numerically largest
+  threshold wins an exact tie. Test contributes no candidate or choice.
+- Secondary threshold metrics use exact confusion counts and explicit undefined
+  reasons. Sigmoid output is an uncalibrated evaluation score. Calibration-bias,
+  Brier, and ten-bin ECE are descriptive only; no calibration transform is fit.
+- The primary 95 percent uncertainty interval is a 2000-replicate stratified slide
+  bootstrap percentile interval driven by the run seed, using frozen order indices
+  49 and 1949. It is not patient-cluster uncertainty.
+- Test remains inaccessible until a future final-once authorization names the
+  frozen config, code, manifest, checkpoint, and validation-threshold identities.
+
+Approved transfer disposition:
+
+- No transfer dataset, physical-scale adaptation, or transfer protocol belongs to
+  the CAM16 Phase 1 starting baseline. Those choices require a later, separate
+  preregistration before transfer evaluation and do not block preparation of the
+  CAM16 training entry.
+- No WSI, candidate-generation, fabrication, SLM, hardware-control, clinical, or
+  physical-deployment route is restored.
+
+Rejected alternatives:
+
+- hidden framework defaults, data-adaptive parameter selection, weighted or
+  balanced sampling, augmentation, MLP classifiers, learned/normalized optical
+  features, test-based choices, automatic failed-run retries, inferred patient
+  identities, and implementation-defined metric/threshold arithmetic.
+
+Implementation and evidence:
+
+- The unique formal contract is `configs/phase1_baseline.toml`; the non-formal
+  contract is `configs/phase0_dry_run.toml`.
+- Normative explanations are `docs/TRAINING_PROTOCOL.md`,
+  `docs/EVALUATION_PROTOCOL.md`, and ADR 0010. Source is under
+  `src/cg_pipeline/`; public-interface and negative tests are under `tests/`.
+- The untracked `docs/CAM16_EVAL_V1_CALCULATION_CONTRACT_DRAFT.md` remains a
+  non-normative historical draft and is neither overwritten nor required by this
+  decision.
+
+Still externally unresolved:
+
+- The supplied package has `slide_id` but no validated reliable patient-to-slide
+  mapping. Slide-ID split isolation is reportable; patient-level isolation remains
+  not evaluated and the patient-level Phase 0 gate remains unmet.
+- The minimum acceptable external evidence is one complete provenance-bearing CSV
+  with exactly `slide_id`, `patient_id`, and `provenance`, covering every in-scope
+  slide with no duplicate assignment or patient identity crossing splits.
+- `configs/phase0_release.json` therefore remains closed. Formal training must
+  continue to fail preflight before its first batch.
+
+Implementation-audit addendum:
+
+- A nonempty `provenance` cell proves only that the mapping CSV is structurally
+  complete; it does not prove the source is reliable. The patient gate additionally
+  requires an attributable approval artifact, and the release record binds its
+  SHA-256 together with the exact mapping and source-manifest SHA-256 values.
+  Preflight reads and hashes that separate artifact; a claimed digest without the
+  artifact, or any post-approval edit, fails the gate.
+- Every preregistered scientific field is value-locked by the config validator.
+  Resume accepts only a continuous zero-based sequence of immutable checkpoint and
+  epoch-report pairs whose config, code, source/effective manifest, complete fixed
+  frontend, model-state checkpoint, seed, and epoch identities match exactly.
+- Evaluation compares the prediction ledger against every authorized effective
+  manifest row. Results bind config, code, source/effective manifest, fixed frontend,
+  checkpoint, seed, and validation-threshold identities. Test access has no Boolean
+  shortcut; it requires a final-once authorization object whose identities all
+  match the frozen evaluation context.
+  The authorization loader likewise reads a separate approval-evidence artifact
+  and rechecks both artifact hashes at evaluation time.

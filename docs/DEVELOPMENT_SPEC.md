@@ -20,14 +20,16 @@ documentation must conform to it.
 
 **Current phase: Phase 0 — specification baseline and interface contracts**
 
-**Status: active; the Phase 0 acceptance gate has not passed.**
+**Status: active; all repository-internal Phase 0 work is complete, but the Phase 0
+acceptance gate has not passed because reliable patient-to-slide mapping evidence
+is not available.**
 
 The purpose of this phase is to turn the approved research architecture into
-reviewable contracts without choosing any unresolved scientific or experimental
-value. Work in this phase may:
+reviewable and executable contracts. Under the explicit 2026-08-03 autonomous
+closure authorization recorded in `docs/DECISIONS.md`, work in this phase may:
 
 - document typed interfaces and tensor/data contracts;
-- define configuration schemas with unresolved values left as `TBD`;
+- implement and validate the uniquely frozen configuration schema;
 - define module boundaries for dataset adapters, the fixed optical frontend, the
   trainable electronic backend, evaluation, and the public experiment pipeline;
 - add synthetic fixtures and contract tests that do not encode an unapproved
@@ -35,8 +37,10 @@ value. Work in this phase may:
 - inspect local metadata and validate an explicitly supplied split manifest without
   moving samples or changing split membership.
 
-This phase does **not** authorize model training, comparative experiments, test-set
-evaluation, transfer evaluation, or implementation choices that resolve a `TBD`.
+This phase does **not** authorize formal model training, comparative experiments,
+test-set evaluation, or transfer evaluation. The synthetic dry run is explicitly
+non-formal. Formal training remains fail-closed until the patient-level isolation
+gate and `configs/phase0_release.json` both pass.
 
 ## 3. Locked project scope
 
@@ -334,7 +338,7 @@ Configuration must be explicit rather than hidden in source code.
   participate in the product.
 - The feature has squared modulus-response units and denotes joint response
   strength, not a probability, correlation coefficient, or normalized score.
-- Electronic-backend execution precision remains a separate unresolved decision.
+- Electronic-backend execution precision is frozen in Section 3.12.
 - The branch does not distinguish balanced from imbalanced H/E pairs having the
   same product; stain imbalance belongs to the separately required
   difference-feature family.
@@ -371,7 +375,7 @@ Configuration must be explicit rather than hidden in source code.
   `150 x 150`.
 - No bias, epsilon, nonlinearity, clipping, normalization, or trainable scaling is
   part of the branch. Its outputs have squared modulus-response units.
-- Electronic-backend execution precision remains a separate unresolved decision.
+- Electronic-backend execution precision is frozen in Section 3.12.
 - Larger, dilated, orientation-aligned, scale-dependent, and learned neighborhoods
   are excluded from the primary branch and require explicit approval as future
   ablations.
@@ -402,9 +406,9 @@ Configuration must be explicit rather than hidden in source code.
   ratio, logarithm, normalization, trainable scaling, or additional clipping is
   part of the branch.
 - Non-finite inputs or results are errors and must not be replaced by zero.
-- Electronic-backend execution precision remains a separate unresolved decision.
+- Electronic-backend execution precision is frozen in Section 3.12.
 - Combining the four branch outputs is frozen in Section 3.7. Selecting a support
-  mask for later spatial pooling remains a separate unresolved decision.
+  mask for later spatial pooling is frozen in Section 3.8.
 
 ### 3.7 Required combined interaction-feature interface
 
@@ -649,7 +653,7 @@ Configuration must be explicit rather than hidden in source code.
   dropout, feature selection, attention, residual connection, trainable
   temperature, or other parameter, running state, or persistent buffer.
 - Probability conversion, decision threshold, and calibration are outside the
-  classifier and remain unresolved evaluation decisions.
+  classifier and are frozen in Section 3.15 and `docs/EVALUATION_PROTOCOL.md`.
 - The classifier has exactly `9408 + 1 = 9409` trainable scalar parameters. With
   the already approved 64 cross-stain gating scalars, the complete electronic
   backend has exactly `9473` trainable scalars. The fixed optical frontend has
@@ -658,8 +662,8 @@ Configuration must be explicit rather than hidden in source code.
   trainable scalar fails acceptance.
 - Optimizer-ownership audit must find each of the 9473 electronic-backend
   parameters exactly once and must find no optical-frontend parameter. Optimizer
-  algorithm, optimizer-state precision, regularization, and schedule remain
-  unresolved.
+  algorithm, optimizer-state precision, regularization, and schedule are frozen in
+  Section 6 and `docs/TRAINING_PROTOCOL.md`.
 - No additional classifier weight tying or H/E-exchange invariance is imposed.
   The approved input exchange permutation remains auditable, but it does not
   require equal logits after H/E exchange.
@@ -724,8 +728,8 @@ Configuration must be explicit rather than hidden in source code.
   Section 3.14, including the upstream-gradient fixtures and non-finite handling.
   The tolerance constants, comparator arithmetic precision, and normative-zero
   and near-zero comparison rules are frozen there as well. Loss definition,
-  explicitly selected loss-internal precision, and optimizer-state precision
-  remain unresolved.
+  loss-internal precision, and optimizer-state precision are frozen in Section 6
+  and `docs/TRAINING_PROTOCOL.md`.
 
 ### 3.13 Required statistical summation-order interface
 
@@ -991,7 +995,7 @@ Configuration must be explicit rather than hidden in source code.
   behavior are part of the acceptance audit identity. Any mismatch between the
   recorded identity and the executed comparator blocks acceptance.
 
-### 3.15 Approved `cam16-eval-v1` principles pending complete calculation contracts
+### 3.15 Frozen `cam16-eval-v1` calculation contract
 
 - The patch-level evaluation object is defined only by an immutable patch
   manifest.
@@ -1008,17 +1012,26 @@ Configuration must be explicit rather than hidden in source code.
   **uncalibrated evaluation scores**. They must not be described as calibrated,
   clinical, or natural-population probabilities.
 - The sole primary endpoint is slide-level AUROC.
-- Patch and slide decision thresholds are distinct and may use validation data
-  only. Each is selected by a fully frozen Youden algorithm; the exact candidate
-  set, arithmetic, tie handling, and exceptional cases remain unresolved until
-  separately approved.
-- Existing-patch manifest identity, slide aggregation, all metric and
-  calibration-estimation arithmetic, threshold candidates, and exceptional-case
-  handling require one unique auditable definition before `cam16-eval-v1` is
-  frozen.
-- These approved principles do not authorize training or evaluation. In
-  particular, the absent reliable patient-to-slide mapping keeps the patient-level
-  Phase 0 gate unmet.
+- Patch and slide decision thresholds are distinct and use validation data only.
+  The candidate set is every distinct finite raw float32 validation logit at that
+  level; prediction is positive for `z >= t`; maximum exact rational Youden J wins;
+  and the numerically largest raw-logit threshold wins an exact tie.
+- Primary slide and secondary patch AUROC use exact Mann-Whitney win and tie counts
+  on raw float32 logits. Missing classes, empty populations, and non-finite or
+  missing logits are undefined and fail reportability rather than receiving a
+  substituted value.
+- Manifest-bounded slide aggregation selects the maximum patch logit. A tie records
+  the smallest UTF-8 `patch_id` only as provenance. This is not complete WSI
+  inference or all-tissue coverage.
+- Threshold metrics, uncalibrated-score diagnostics, operation order, exceptional
+  cases, result identity, and the 2000-replicate stratified slide bootstrap interval
+  are frozen in `docs/EVALUATION_PROTOCOL.md` and the unique effective
+  configuration.
+- Test access requires a separate final-once authorization naming the frozen
+  config, code, data, checkpoint, and validation-threshold identities. The current
+  release record keeps test access false.
+- The absent reliable patient-to-slide mapping still keeps the patient-level Phase
+  0 gate unmet. No evaluation is authorized during the current Phase 0 work.
 
 ### 3.1 Required Morlet generation interface
 
@@ -1035,7 +1048,7 @@ The Phase 0 interface contract must distinguish:
 - a frontend response containing the ordered first-order feature maps and the
   Boolean `valid_support_mask` under the locked True/False semantics.
 
-The generator must fail while a required field remains `TBD`. It must generate the
+The generator must fail when a required field is missing, invalid, or unresolved. It must generate the
 bundle once and provide the same immutable tensor reference to the H and E paths.
 The interface must expose enough metadata to reproduce channel ordering without
 relying on source-code iteration order.
@@ -1049,7 +1062,8 @@ Phase 0 is complete only when all of the following artifacts exist and agree:
    interaction features, pooled features, patch predictions, and slide
    predictions.
 3. An explicit configuration schema covering every scientific and experimental
-   choice, with unresolved values represented as `TBD` rather than defaults.
+   choice, rejecting unknown, missing, illegal, floating-TOML, and unresolved
+   values rather than supplying code defaults.
 4. A CAM16 dataset-adapter contract that requires a stable existing group or
    slide identifier, an explicit `identity_level` and `identity_column`, and an
    externally supplied, immutable split manifest. A patient-level identity
@@ -1067,11 +1081,11 @@ Phase 0 is complete only when all of the following artifacts exist and agree:
 8. Unit tests for all implemented Phase 0 modules.
 9. A smoke test that runs the public pipeline seam on synthetic data only.
 10. Documentation of test commands, expected evidence, and any skipped checks.
-11. Explicit human decisions for every blocking `TBD`, recorded in
+11. Explicit human decisions for every formerly blocking group, recorded in
     `docs/DECISIONS.md`.
 
 The Phase 0 total-acceptance closure is limited to these eleven deliverables and
-freezing the five existing blocking decision groups in Section 6. It must not add
+the five decision-group dispositions in Section 6. It must not add
 a new research module, broaden the primary model, or expand the research scope.
 
 Completion evidence for each deliverable must identify its code location,
@@ -1088,7 +1102,7 @@ The gate is **closed by default**. It passes only when:
 - every Phase 0 deliverable is present;
 - all unit tests for changed modules pass;
 - the project smoke test passes;
-- no test, fixture, or configuration silently selects a value for a `TBD`;
+- no test, fixture, or configuration supplies a hidden or unresolved value;
 - patient-level split isolation is demonstrated from the approved split manifest
   only when a reliable patient-to-slide mapping exists and its provenance,
   in-scope mapping coverage, and assignment consistency have been verified.
@@ -1184,8 +1198,8 @@ The gate is **closed by default**. It passes only when:
   activations, normalization, dropout, feature selection, attention, residual
   connections, trainable temperature, running state, and persistent buffers;
 - optimizer-ownership tests verify that every electronic-backend parameter appears
-  exactly once and no optical parameter appears, without selecting an unresolved
-  optimizer algorithm or optimizer-state precision;
+  exactly once and no optical parameter appears under the frozen optimizer and
+  optimizer-state precision contract;
 - diagnostic-isolation tests verify that read-only summaries cannot alter forward
   values, model state, loss, sampling, optimizer or schedule configuration, early
   stopping, or any other data-adaptive training rule;
@@ -1261,26 +1275,34 @@ The gate is **closed by default**. It passes only when:
 Until every condition is satisfied, the repository remains in Phase 0. Agents must
 report the unmet conditions and must not begin the next phase.
 
-## 6. Blocking unresolved decisions
+## 6. Blocking decision groups and current disposition
 
-The following values remain `TBD` and must not be inferred, defaulted, or selected
-by an agent:
+The five Phase 0 groups now have explicit human disposition under the 2026-08-03
+authorization. Executable values occur only in `configs/phase1_baseline.toml`:
 
-- loss definition and explicitly selected loss-internal precision, plus
-  optimizer-state precision;
-- the remaining `cam16-eval-v1` calculation contract: existing-patch manifest
-  identity, training patch sampling, group or slide aggregation, complete Youden
-  candidate/tie/exception rules, calibration estimation, and exact metric
-  arithmetic. Uncalibrated-score terminology, validation-only separate
-  thresholds, and the slide-level AUROC primary endpoint are already approved in
-  principle;
-- training seeds, optimization budget, confidence-interval method, and final-once
-  test gate;
-- transfer datasets, physical-scale adaptation, and transfer protocol.
+1. `linear-logit-v1` and the exact 9473-scalar backend are frozen in Section 3.11.
+2. Loss, loss precision, optimizer, optimizer-state precision, regularization, and
+   schedule are frozen in `docs/TRAINING_PROTOCOL.md`: unweighted mean float32
+   BCE-with-logits and float32-state AdamW with the exact configured parameters and
+   no scheduler.
+3. `cam16-eval-v1` manifest, sampling, aggregation, AUROC, Youden, secondary
+   metrics, calibration diagnostics, uncertainty, and exceptional cases are frozen
+   in Section 3.15 and `docs/EVALUATION_PROTOCOL.md`.
+4. Seeds, batch/epoch budget, early stopping, checkpoint/resume, failed-run,
+   multi-seed, 2000-replicate confidence interval, and final-once test rules are
+   frozen in the two protocol documents and the unique configuration.
+5. Transfer datasets, physical-scale adaptation, and transfer protocol are not part
+   of the CAM16 Phase 1 starting baseline. They require a later separate
+   preregistration and do not authorize transfer work now.
 
-Any additional unresolved scientific, data, training, or evaluation choice
-discovered during Phase 0 must be added to this list as `TBD` and presented for
-human approval.
+These are conservative preregistered starting values, not empirically demonstrated
+optima. No repository-internal blocking `TBD` remains. One external acceptance
+dependency remains: a reliable provenance-bearing patient-to-slide mapping with
+complete in-scope coverage and cross-split assignment-consistency validation,
+plus an attributable provenance-reliability approval artifact bound to the exact
+mapping and source-manifest SHA-256 values.
+Without it, patient-level isolation is `not_evaluated`, the Phase 0 gate stays
+closed, and formal training is prohibited.
 
 ## 7. Prohibited actions
 
