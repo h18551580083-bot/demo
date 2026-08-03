@@ -1252,3 +1252,42 @@ Approved:
   and every effective configuration capable of changing floating-point behavior
   are part of the audit identity. An identity/execution mismatch blocks
   acceptance.
+
+## 2026-08-02 — Accept the Decision 30 RTX 4090 formal calibration result
+
+Approved:
+
+- Decision 30 formal cross-device numerical-equivalence acceptance names one
+  non-CPU tested device: `NVIDIA GeForce RTX 4090`, GPU UUID
+  `GPU-302ac56f-e8de-c41b-76ed-3c66fc66ea95`.
+- The accepted run ID is
+  `decision30-formal-acceptance-rtx4090-20260802`, executed in
+  `formal_acceptance` mode from Git commit
+  `9b5d2ea61eabbb61e54570696f14783baba27ee7`.
+- The pre-registered formal fixture is
+  `decision30-formal-rtx4090-v1` with shape `[1, 4, 8, 7, 9, 11]` and input
+  hashes:
+  - `z`:
+    `248bfed97cc17b71b5fa0553e622155ec6a309f64d32f4c4d285aed8c7a877b9`;
+  - `mask`:
+    `466fbff22dd950cb181e52dc62ebf5de2311733b59b74125e01a78bf34299767`;
+  - `valid_counts`:
+    `43350a995b402b25021884314a636d4305864ac4fe7de19fa6f4a8e3a6b29687`.
+- Both forward comparison objects and all three fresh-autograd backward `dZ`
+  objects passed their elementwise gates and quarter-margin requirements.
+- All eight candidate-operator negative controls were detected. Input identity,
+  the protected floating-point environment, and every required zero-variance
+  forward/backward check passed.
+- The audited report is
+  `artifacts/decision30_formal_acceptance_rtx4090_20260802.json`, with SHA-256
+  `fe0c0a3d704a2ae458e26e894ef82be0fddcdf13ad430ac5f483bf72b1836117`.
+  The report remains an ignored local acceptance artifact and is not approved
+  for Git tracking.
+- The report's CPU reference, device operator, comparator, and calibration
+  orchestrator code identities match the named commit. The recorded runtime
+  used PyTorch `2.3.0a0+6ddf5cf85e.nv24.04`, CUDA `12.4`, cuDNN `90100`, and
+  driver `580.126.09` on Linux x86-64.
+- This approval closes only the Decision 30 formal RTX 4090 calibration gate.
+  It does not pass the repository-wide Phase 0 acceptance gate, approve any
+  remaining `TBD`, authorize training or evaluation, or approve entry into the
+  next phase.
