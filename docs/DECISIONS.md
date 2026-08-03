@@ -1291,3 +1291,73 @@ Approved:
   It does not pass the repository-wide Phase 0 acceptance gate, approve any
   remaining `TBD`, authorize training or evaluation, or approve entry into the
   next phase.
+
+## 2026-08-03 — Conditionally approve Phase 0 total-acceptance closure
+
+Approved:
+
+- The sole current next work is the **Phase 0 total-acceptance closure**.
+- Until all Phase 0 deliverables pass their acceptance criteria and a human
+  explicitly approves the phase transition, the project must not run CAM16
+  training, model selection, comparative, ablation, transfer, or final-test
+  experiments.
+- The closure scope is limited to the eleven Phase 0 deliverables in Section 4 of
+  `docs/DEVELOPMENT_SPEC.md` and freezing the five existing blocking decision
+  groups in Section 6. It must not add a new research module or broaden the
+  primary model.
+- Evidence for every Phase 0 deliverable must identify the code location,
+  configuration location, tests, acceptance metrics, and produced artifact. A
+  statement that a deliverable is merely "implemented" is insufficient.
+- Patient-level isolation may be claimed only when a reliable patient-to-slide
+  mapping exists and has been validated. If that mapping is absent or not
+  validated, evidence must state the actually verified supplied identifier level,
+  such as `group_id` or `slide_id`, and must not imply patient-level isolation.
+- `group_id`-level or `slide_id`-level evidence does not satisfy the existing
+  patient-level Phase 0 acceptance gate unless that identifier has itself been
+  verified as a patient identity.
+
+Not approved by this decision:
+
+- None of the five blocking decision groups is resolved; every value in those
+  groups remains `TBD` pending separate human review.
+- The Phase 0 acceptance gate has not passed, and entry into the next phase is not
+  approved.
+
+## 2026-08-03 — Approve `linear-logit-v1` and the exact backend budget
+
+Approved:
+
+- The primary trainable classifier is `linear-logit-v1`.
+- Its input is the approved float32 identity handoff with shape `[B, 9408]`.
+- It contains exactly one biased affine map,
+  `z[b] = b_head + sum_(q=0)^9407 w[q] * x[b,q]`, and emits one float32 raw
+  binary logit per patch with shape `[B]`.
+- `w` has shape `[1, 9408]`, `b_head` has shape `[1]`, and both are explicitly
+  initialized to exact zero. Framework-default or random initialization is not
+  part of the primary classifier.
+- The classifier has no sigmoid, hidden layer, activation, normalization,
+  dropout, feature selection, attention, residual connection, trainable
+  temperature, additional parameter, running state, or persistent buffer.
+- Probability conversion, thresholding, and calibration are outside the
+  classifier and remain unresolved evaluation decisions.
+- The classifier has exactly 9409 trainable scalars. Together with the approved
+  64 cross-stain gating scalars, the complete electronic backend has exactly
+  **9473** trainable scalars. The fixed optical frontend has exactly zero.
+- This parameter budget is an equality rather than an upper bound. Every
+  electronic-backend parameter must occur exactly once in optimizer-ownership
+  audits, no optical parameter may occur, and any extra trainable scalar fails
+  acceptance.
+- No additional classifier weight tying or H/E-exchange invariance is imposed.
+
+Still unresolved:
+
+- Patch sampling, slide-level aggregation, probability conversion, decision
+  threshold, calibration, and evaluation metrics.
+- Loss definition, loss-internal precision, and optimizer-state precision.
+- Optimizer algorithm, regularization, schedule, training seeds, optimization
+  budget, confidence intervals, and the final-once test gate.
+- Transfer datasets, physical-scale adaptation, and transfer protocol.
+
+This decision freezes one of the five blocking decision groups. It does not
+authorize implementation-dependent defaults, training, evaluation, or a phase
+transition.

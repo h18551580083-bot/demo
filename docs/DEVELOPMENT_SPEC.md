@@ -534,7 +534,7 @@ Configuration must be explicit rather than hidden in source code.
 - Spatial-pyramid statistics and statistic-axis order are frozen in Section 3.10.
   The pooled-feature normalization policy is frozen in Section 3.11.
   Electronic-backend execution precision, AMP policy, and output dtype are frozen
-  in Section 3.12. Classifier structure remains unresolved.
+  in Section 3.12. Primary classifier structure is frozen in Section 3.11.
 - Across different input dimensions, the pyramid is relative to the canonical
   support rectangle and makes no fixed-physical-scale claim.
 
@@ -584,7 +584,7 @@ Configuration must be explicit rather than hidden in source code.
   primary model and require explicit approval as ablations.
 - Pooled-feature normalization is frozen in Section 3.11, reduction execution and
   accumulation dtypes are frozen in Section 3.12, and statistical summation order
-  is frozen in Section 3.13. Classifier structure remains unresolved.
+  is frozen in Section 3.13. The primary classifier is frozen in Section 3.11.
 
 ### 3.11 Required pooled-feature handoff interface
 
@@ -606,8 +606,8 @@ Configuration must be explicit rather than hidden in source code.
   from the four modulus-response features and 4032 derive from the three
   squared-modulus-response features.
 - The classifier has the capacity to adapt to coordinate-scale differences, but
-  realized behavior depends on the later-approved optimizer, initialization, and
-  regularization.
+  realized behavior depends on the later-approved optimizer and regularization.
+  Classifier initialization is frozen below.
 - All 9408 classifier-input coordinates are checked for finiteness before
   classifier evaluation. Any non-finite value fails closed.
 - For batches `b,b'` and flattened coordinates `q,q'`, the handoff Jacobian is
@@ -629,10 +629,37 @@ Configuration must be explicit rather than hidden in source code.
 - Diagnostics may inform a later explicit human decision but may not silently
   modify the primary pipeline.
 - The canonical dtype conversion and AMP policy are frozen in Section 3.12, and
-  statistical summation order is frozen in Section 3.13. Classifier architecture
-  remains unresolved.
-- Normalization inside a future classifier is not implicitly authorized and must
-  be resolved with the classifier architecture.
+  statistical summation order is frozen in Section 3.13.
+
+#### Primary `linear-logit-v1` classifier
+
+- The primary classifier input is exactly the finite float32 identity vector
+  `x` with shape `[B, 9408]` from this handoff.
+- The classifier is one affine map with bias:
+  `z[b] = b_head + sum_(q=0)^9407 w[q] * x[b,q]`.
+- `w` has shape `[1, 9408]`, `b_head` has shape `[1]`, and the raw binary-logit
+  output has shape `[B]`. Inputs, parameters, arithmetic, and output are float32.
+- `w` and `b_head` are initialized explicitly to exact zero. Framework-default or
+  random initialization is prohibited for the primary classifier, and the
+  initial logit is exactly zero for every finite input.
+- The classifier contains no sigmoid, hidden layer, activation, normalization,
+  dropout, feature selection, attention, residual connection, trainable
+  temperature, or other parameter, running state, or persistent buffer.
+- Probability conversion, decision threshold, and calibration are outside the
+  classifier and remain unresolved evaluation decisions.
+- The classifier has exactly `9408 + 1 = 9409` trainable scalar parameters. With
+  the already approved 64 cross-stain gating scalars, the complete electronic
+  backend has exactly `9473` trainable scalars. The fixed optical frontend has
+  exactly zero trainable parameters.
+- The parameter budget is an equality, not an upper bound. Any additional
+  trainable scalar fails acceptance.
+- Optimizer-ownership audit must find each of the 9473 electronic-backend
+  parameters exactly once and must find no optical-frontend parameter. Optimizer
+  algorithm, optimizer-state precision, regularization, and schedule remain
+  unresolved.
+- No additional classifier weight tying or H/E-exchange invariance is imposed.
+  The approved input exchange permutation remains auditable, but it does not
+  require equal logits after H/E exchange.
 
 ### 3.12 Required electronic-backend precision interface
 
@@ -991,9 +1018,15 @@ Phase 0 is complete only when all of the following artifacts exist and agree:
    predictions.
 3. An explicit configuration schema covering every scientific and experimental
    choice, with unresolved values represented as `TBD` rather than defaults.
-4. A CAM16 dataset-adapter contract that requires stable patient and slide
-   identifiers and an externally supplied, immutable split manifest.
-5. A leakage check that fails when a patient occurs in more than one split.
+4. A CAM16 dataset-adapter contract that requires a stable existing group or
+   slide identifier, an explicit `identity_level` and `identity_column`, and an
+   externally supplied, immutable split manifest. A patient-level identity
+   additionally requires a reliable patient-to-slide mapping with recorded
+   provenance, in-scope mapping coverage, and assignment-consistency validation.
+5. A leakage check that fails when one identity at the explicitly declared level
+   occurs in more than one split, reports that level without upgrading the claim,
+   and fails the patient-level gate unless the declared identity is supported by
+   a reliable patient-to-slide mapping.
 6. A fixed-frontend check proving that no optical-frontend value is registered as a
    trainable parameter or changed by an optimizer step.
 7. A deterministic Morlet-generator contract with separate parameter-specification
@@ -1004,6 +1037,14 @@ Phase 0 is complete only when all of the following artifacts exist and agree:
 10. Documentation of test commands, expected evidence, and any skipped checks.
 11. Explicit human decisions for every blocking `TBD`, recorded in
     `docs/DECISIONS.md`.
+
+The Phase 0 total-acceptance closure is limited to these eleven deliverables and
+freezing the five existing blocking decision groups in Section 6. It must not add
+a new research module, broaden the primary model, or expand the research scope.
+
+Completion evidence for each deliverable must identify its code location,
+configuration location, tests, acceptance metrics, and produced artifact. A bare
+statement that a deliverable is "implemented" is not acceptance evidence.
 
 Deliverables may be added in separate work items. Their existence does not by
 itself pass the acceptance gate.
@@ -1016,7 +1057,12 @@ The gate is **closed by default**. It passes only when:
 - all unit tests for changed modules pass;
 - the project smoke test passes;
 - no test, fixture, or configuration silently selects a value for a `TBD`;
-- patient-level split isolation is demonstrated from the approved split manifest;
+- patient-level split isolation is demonstrated from the approved split manifest
+  only when a reliable patient-to-slide mapping exists and its provenance,
+  in-scope mapping coverage, and assignment consistency have been verified.
+  Without that evidence, the strongest permitted claim is the exact supplied
+  identifier level, such as `group_id` or `slide_id`, and the patient-level gate
+  remains unmet;
 - the optical frontend is demonstrated to be non-trainable and unchanged during a
   backend optimization step;
 - every discrete Morlet kernel passes the approved discrete zero-DC tolerance and
@@ -1097,6 +1143,17 @@ The gate is **closed by default**. It passes only when:
   coordinates, the identity Jacobian with zero cross-coordinate derivatives, and
   the exact involutive flattened H/E permutation
   `Pi(q(j,ell,c,p,s)) = q(j,ell,pi[c],p,s)`;
+- `linear-logit-v1` tests verify exact affine arithmetic, `[B,9408]` float32 input,
+  `[B]` float32 raw-logit output, explicit exact-zero parameter initialization,
+  exact-zero initial logits, 9409 classifier parameters, 64 gating parameters,
+  exactly 9473 total electronic-backend parameters, zero optical parameters, and
+  rejection of every extra trainable scalar;
+- classifier-structure tests verify absence of sigmoid, hidden layers,
+  activations, normalization, dropout, feature selection, attention, residual
+  connections, trainable temperature, running state, and persistent buffers;
+- optimizer-ownership tests verify that every electronic-backend parameter appears
+  exactly once and no optical parameter appears, without selecting an unresolved
+  optimizer algorithm or optimizer-state precision;
 - diagnostic-isolation tests verify that read-only summaries cannot alter forward
   values, model state, loss, sampling, optimizer or schedule configuration, early
   stopping, or any other data-adaptive training rule;
@@ -1179,7 +1236,6 @@ by an agent:
 
 - loss definition and explicitly selected loss-internal precision, plus
   optimizer-state precision;
-- trainable backend architecture and parameter budget;
 - patch sampling, slide-level aggregation, decision threshold, calibration, and
   evaluation metrics;
 - training seeds, optimization budget, confidence-interval method, and final-once
@@ -1223,9 +1279,19 @@ During Phase 0, the following are additionally prohibited:
 
 ## 8. Data and evaluation invariants
 
-- Dataset identity is determined at patient level first, then slide and patch level.
-- Every sample used by an experiment must be traceable to a patient, slide, split,
-  and source manifest without exposing patient metadata.
+- Dataset isolation identity is declared at the strongest externally validated
+  level. Patient-level identity requires a reliable patient-to-slide mapping;
+  otherwise the declared level remains the supplied group or slide identifier.
+- Every sample used by an experiment must be traceable to its declared isolation
+  identity, slide, split, and source manifest without exposing patient metadata.
+  Patient traceability is additionally required before a patient-level claim.
+- Every split-isolation result must state the exact verified identity level. It
+  may be called patient-level only when supported by a reliable patient-to-slide
+  mapping; otherwise it must be reported at the exact supplied identifier level,
+  such as `group_id` or `slide_id`, without implying patient-level protection.
+- A `slide_id` must not be treated as or renamed to `patient_id` by default. A
+  supplied `group_id` satisfies the patient-level gate only when evidence verifies
+  that it represents patient identity for every in-scope record.
 - Split validation must occur before feature extraction, training, or evaluation.
 - Split membership must be supplied explicitly; dataset adapters must not invent a
   split.

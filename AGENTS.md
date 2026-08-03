@@ -18,6 +18,9 @@
 ## Data rules
 
 - Prevent patient-level leakage.
+- Claim patient-level isolation only with a validated, reliable patient-to-slide
+  mapping. Otherwise report the exact supplied identifier level, such as
+  `group_id` or `slide_id`, and keep the patient-level Phase 0 gate unmet.
 - Never change dataset splits silently.
 - Never download datasets automatically.
 - Do not commit images, checkpoints, credentials, or patient metadata.

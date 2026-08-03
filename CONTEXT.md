@@ -137,3 +137,30 @@ _Avoid_: Native reduction, atomic accumulation, device-dependent reduction
 The sole auditable CPU execution path against which supported device statistics
 are judged numerically equivalent under approved tolerances.
 _Avoid_: Bitwise oracle, device-local reference, implementation default
+
+**Reliable patient-to-slide mapping**:
+An externally supplied mapping whose provenance, in-scope mapping coverage, and
+patient assignment consistency have been verified before it is used to support
+an isolation claim.
+_Avoid_: Filename-inferred patient identity, assumed patient mapping
+
+**Patient-level split isolation**:
+A split property in which no verified patient identity occurs in more than one
+split, supported by a reliable patient-to-slide mapping.
+_Avoid_: Group-ID-level isolation
+
+**Group-ID-level split isolation**:
+A split property in which no supplied `group_id` occurs in more than one split;
+its claim is limited to that identifier unless it is verified as a patient ID.
+_Avoid_: Patient-level isolation, assumed patient grouping
+
+**Slide-ID-level split isolation**:
+A split property in which no supplied `slide_id` occurs in more than one split;
+it does not establish patient-level isolation without a reliable patient-to-slide
+mapping.
+_Avoid_: Patient-level isolation, group-ID-level isolation
+
+**Linear-logit primary classifier**:
+The trainable digital head that maps the canonical 9408-coordinate pooled vector
+through one zero-initialized affine operation to one raw binary logit per patch.
+_Avoid_: MLP head, probability head, normalized classifier
