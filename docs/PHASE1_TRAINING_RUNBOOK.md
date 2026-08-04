@@ -8,7 +8,7 @@ entry on an RTX 4090; it does not itself start training.
 
 - Release ID/tag: `phase1-training-b32-v3` (release-governance identity).
 - Run ID: `phase1-cam16-baseline-b32-v2` (unchanged training-config identity).
-- Formal code commit: `174e059915fabdba687f7c904f2b184f2627a674`.
+- Formal code commit: `e50cc7e0aa16655f132b9cd321bb5a26b41f76bc`.
 - Config SHA-256:
   `sha256:e44768d80d7c1545138d7d5e1368de4ed53b7b07b71202e2c5bdee6efac7cf3b`.
 - Test access remains false. Do not enumerate, hash, load, or evaluate the test
@@ -43,8 +43,8 @@ git checkout --detach phase1-training-b32-v3
 test "$(git cat-file -t phase1-training-b32-v3)" = "tag"
 test "$(git rev-parse 'phase1-training-b32-v3^{}')" = "$(git rev-parse HEAD)"
 test "$(git rev-list --parents -n 1 HEAD | wc -w)" -eq 2
-test "$(git rev-parse HEAD^)" = "174e059915fabdba687f7c904f2b184f2627a674"
-test -z "$(git status --porcelain --untracked-files=no)"
+test "$(git rev-parse HEAD^)" = "e50cc7e0aa16655f132b9cd321bb5a26b41f76bc"
+test -z "$(git status --porcelain)"
 
 git diff-tree --no-commit-id --name-only --no-renames -r HEAD^ HEAD > /tmp/release-paths.txt
 printf '%s\n' \
@@ -65,8 +65,15 @@ import torch
 assert torch.cuda.is_available()
 assert torch.cuda.device_count() >= 1
 name = torch.cuda.get_device_name(0)
-assert "4090" in name, name
-print({"torch": torch.__version__, "cuda": torch.version.cuda, "gpu": name})
+total_memory = torch.cuda.get_device_properties(0).total_memory
+assert name == "NVIDIA GeForce RTX 4090", name
+assert total_memory >= 23 * 1024**3, total_memory
+print({
+    "torch": torch.__version__,
+    "cuda": torch.version.cuda,
+    "gpu": name,
+    "total_memory_bytes": total_memory,
+})
 PY
 
 python tools/audit_phase1_training_contract.py

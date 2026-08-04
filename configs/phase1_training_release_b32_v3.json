@@ -5,7 +5,7 @@
   "phase0_release_tag": "phase0-closed-v1",
   "release_id_role": "release-governance-identity",
   "annotated_tag": "phase1-training-b32-v3",
-  "formal_code_commit": "174e059915fabdba687f7c904f2b184f2627a674",
+  "formal_code_commit": "e50cc7e0aa16655f132b9cd321bb5a26b41f76bc",
   "release_commit_allowed_paths": [
     "configs/phase1_training_release_b32_v3.json",
     "docs/DECISIONS.md",

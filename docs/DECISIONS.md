@@ -1623,7 +1623,7 @@ Human-approved release correction:
   `phase1-cam16-baseline-b32-v2` remains the training-configuration identity. The
   two version strings have different roles and do not imply a configuration change.
 - Formal code identity is commit
-  `174e059915fabdba687f7c904f2b184f2627a674`. The release commit must have exactly
+  `e50cc7e0aa16655f132b9cd321bb5a26b41f76bc`. The release commit must have exactly
   one parent, that parent must be this formal code commit, and the annotated tag
   must peel exactly to the release commit.
 - The release commit is restricted to exactly
@@ -1651,8 +1651,9 @@ Approved preflight consumption contract:
   `artifacts/preflight/phase1-training-b32-v3/preflight.json`. Formal
   `train --preflight-report` consumes that report and does not repeat the full
   model/optimizer/spectral preflight.
-- The consumed authorization report contains only fields that training can
-  reconstruct from current frozen values or live identities. Its strict schema,
+- Except for audit-only `created_at`, the consumed authorization report contains
+  only fields that training can reconstruct from current frozen values or live
+  identities. Its strict schema,
   canonical content hash, HEAD/tag/release/config/code/source-manifest/train/val
   identities, disk/isolation state, and governance fields are all checked before
   the first batch. A mismatch, injected field, or content corruption fails closed.
