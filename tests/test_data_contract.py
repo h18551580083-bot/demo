@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -213,7 +214,7 @@ def test_dataloader_uses_hash_order_once_without_drop_or_repeat(tmp_path: Path) 
     dataset = PatchDataset(bundle, "train")
     loader = build_dataloader(
         dataset,
-        batch_size=4,
+        batch_size=32,
         seed=1729,
         epoch=0,
         num_workers=0,
@@ -222,6 +223,46 @@ def test_dataloader_uses_hash_order_once_without_drop_or_repeat(tmp_path: Path) 
     batches = list(loader)
 
     assert len(batches) == 1
+    assert loader.drop_last is False
     assert batches[0]["rgb"].shape == (1, 3, 256, 256)
     assert str(batches[0]["rgb"].dtype) == "torch.uint8"
     assert batches[0]["patch_id"] == ["p-train-normal"]
+
+
+class _CountingDataset:
+    def __init__(self, row_count: int) -> None:
+        self.rows = tuple(
+            SimpleNamespace(patch_id=f"patch-{index:06d}") for index in range(row_count)
+        )
+
+    def __len__(self) -> int:
+        return len(self.rows)
+
+    def __getitem__(self, index: int) -> dict[str, str]:
+        return {"patch_id": self.rows[index].patch_id}
+
+
+@pytest.mark.parametrize(
+    ("row_count", "expected_batch_count"),
+    [(79_570, 2_487), (18_171, 568)],
+)
+def test_batch32_retains_every_train_and_validation_row_exactly_once(
+    row_count: int, expected_batch_count: int
+) -> None:
+    dataset = _CountingDataset(row_count)
+    loader = build_dataloader(
+        dataset,  # type: ignore[arg-type]
+        batch_size=32,
+        seed=1729,
+        epoch=0,
+        num_workers=0,
+    )
+
+    observed = [patch_id for batch in loader for patch_id in batch["patch_id"]]
+
+    assert loader.batch_size == 32
+    assert loader.drop_last is False
+    assert len(loader) == expected_batch_count
+    assert len(observed) == row_count
+    assert len(set(observed)) == row_count
+    assert set(observed) == {row.patch_id for row in dataset.rows}

@@ -8,6 +8,13 @@ RFC 8785-subset JSON bytes and their SHA-256 are written before a formal run.
 Unknown fields, missing fields, TOML floating values, illegal values, and `TBD`
 fail before model construction.
 
+The active batch-32 revision is `phase1-cam16-baseline-b32-v2`, released by
+`configs/phase1_training_release_b32_v2.json`. Its normalized configuration hash
+is `sha256:e44768d80d7c1545138d7d5e1368de4ed53b7b07b71202e2c5bdee6efac7cf3b`.
+It supersedes the batch-4 configuration hash
+`sha256:0653ae0003dac9062b73749e879a9a541a3f9dae18b034bdc1632f8410910e75`;
+the historical Phase 0 release and `phase0-closed-v1` tag remain immutable.
+
 This is the preregistered Phase 1 starting baseline. It is intentionally simple
 and reproducible; it is not claimed to be optimal or validated by CAM16 training.
 Changing a scientific field creates a new contract and requires a new decision.
@@ -23,7 +30,7 @@ Changing a scientific field creates a new contract and requires a new decision.
 | Epsilon | `0.00000001` |
 | Weight decay | `0.0001` |
 | Scheduler | none |
-| Batch size | 4; last partial batch retained |
+| Batch size | 32; last partial batch retained (`drop_last = false`) |
 | Epoch limit | 20 |
 | Early stopping | validation slide AUROC, patience 5 completed epochs, minimum improvement 0 |
 | Checkpoint selection | highest validation slide AUROC; earliest epoch wins an exact tie |
@@ -41,6 +48,14 @@ The global epoch order is keyed by seed, zero-based epoch, and exact UTF-8
 `patch_id` under domain `cg/cam16-train-order/v1`. DataLoader batching and worker
 sharding cannot drop, pad, repeat, or reorder membership. Worker seeds are derived
 and recorded. `num_workers = 0` is the preregistered baseline.
+
+For the approved manifest, train has 79,570 rows and therefore 2,487 optimizer
+updates per complete epoch: `ceil(79570 / 32)`. The maximum 20-epoch budget is
+49,740 updates. Validation reuses the same batch-size configuration and has 18,171
+rows, therefore 568 batches: `ceil(18171 / 32)`. The final partial train and
+validation batches are retained, so every row remains covered. Batch 32 is not
+optimizer-step-budget-equivalent to the historical batch-4 contract (19,893
+updates per epoch; 397,860 at 20 epochs).
 
 ## Precision and ownership
 
@@ -78,6 +93,6 @@ prerequisite. Every preflight and training report records
 $env:PYTHONPATH = 'E:\cg\src'
 python -m cg_pipeline preflight --config configs\phase1_baseline.toml `
   --data-root cam16_patch `
-  --release configs\phase0_release.json `
-  --output artifacts\phase0_preflight.json
+  --release configs\phase1_training_release_b32_v2.json `
+  --output artifacts\phase1_b32_preflight.json
 ```

@@ -10,7 +10,7 @@ import subprocess
 import sys
 from dataclasses import asdict
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, TypedDict
 
 import numpy as np
 import torch
@@ -28,6 +28,7 @@ from .data import (
     ManifestBundle,
     PatchDataset,
     build_dataloader,
+    expected_batch_count,
     validate_manifest,
 )
 from .evaluation import (
@@ -50,6 +51,16 @@ from .training import (
     save_checkpoint,
     train_one_step,
 )
+
+
+class BatchContract(TypedDict):
+    batch_size: int
+    drop_last: bool
+    train_rows: int
+    train_batch_count: int
+    maximum_optimizer_updates: int
+    validation_rows: int
+    validation_batch_count: int
 
 
 class Phase0BlockedError(RuntimeError):
@@ -100,9 +111,46 @@ def _is_sha256(value: Any) -> bool:
     )
 
 
-def _validate_release_record(value: dict[str, Any]) -> None:
+def _batch_contract(config: ExperimentConfig, bundle: ManifestBundle) -> BatchContract:
+    batch_size = int(config.training["batch_size"])
+    drop_last = False
+    train_rows = int(bundle.split_counts["train"])
+    validation_rows = int(bundle.split_counts["val"])
+    train_batch_count = expected_batch_count(
+        train_rows, batch_size, drop_last=drop_last
+    )
+    return {
+        "batch_size": batch_size,
+        "drop_last": drop_last,
+        "train_rows": train_rows,
+        "train_batch_count": train_batch_count,
+        "maximum_optimizer_updates": train_batch_count
+        * int(config.training["max_epochs"]),
+        "validation_rows": validation_rows,
+        "validation_batch_count": expected_batch_count(
+            validation_rows, batch_size, drop_last=drop_last
+        ),
+    }
+
+
+def _validate_release_record(
+    value: dict[str, Any], config: ExperimentConfig, batch_contract: BatchContract
+) -> None:
     expected = {
         "schema",
+        "release_id",
+        "supersedes_config_hash",
+        "phase0_release_tag",
+        "config_hash",
+        "normalized_config_sha256",
+        "run_id",
+        "batch_size",
+        "drop_last",
+        "expected_train_rows",
+        "expected_train_batch_count",
+        "maximum_optimizer_updates",
+        "expected_validation_rows",
+        "expected_validation_batch_count",
         "phase0_closed",
         "formal_training_authorized",
         "external_blockers",
@@ -111,9 +159,50 @@ def _validate_release_record(value: dict[str, Any]) -> None:
         "test_access_authorized",
     }
     if set(value) != expected:
-        raise Phase0BlockedError("release record fields do not match phase0-release-v2")
-    if value["schema"] != "phase0-release-v2":
-        raise Phase0BlockedError("release record schema is not phase0-release-v2")
+        raise Phase0BlockedError(
+            "release record fields do not match phase1-training-release-v1"
+        )
+    if value["schema"] != "phase1-training-release-v1":
+        raise Phase0BlockedError(
+            "release record schema is not phase1-training-release-v1"
+        )
+    if not isinstance(value["release_id"], str) or not value["release_id"]:
+        raise Phase0BlockedError("training release_id must be a nonempty string")
+    if value["phase0_release_tag"] != "phase0-closed-v1":
+        raise Phase0BlockedError("training release must bind phase0-closed-v1")
+    for key in ("supersedes_config_hash", "config_hash", "normalized_config_sha256"):
+        if not _is_sha256(value[key]):
+            raise Phase0BlockedError(f"release {key} is not a canonical SHA-256")
+    if value["config_hash"] != config.sha256 or value["normalized_config_sha256"] != (
+        config.sha256
+    ):
+        raise Phase0BlockedError("training release config hash does not match normalized config")
+    if value["run_id"] != config.execution["run_id"]:
+        raise Phase0BlockedError("training release run_id does not match configuration")
+    for key in (
+        "batch_size",
+        "expected_train_rows",
+        "expected_train_batch_count",
+        "maximum_optimizer_updates",
+        "expected_validation_rows",
+        "expected_validation_batch_count",
+    ):
+        if not isinstance(value[key], int) or isinstance(value[key], bool):
+            raise Phase0BlockedError(f"release {key} must be an integer")
+    expected_batch_fields = {
+        "batch_size": batch_contract["batch_size"],
+        "drop_last": batch_contract["drop_last"],
+        "expected_train_rows": batch_contract["train_rows"],
+        "expected_train_batch_count": batch_contract["train_batch_count"],
+        "maximum_optimizer_updates": batch_contract["maximum_optimizer_updates"],
+        "expected_validation_rows": batch_contract["validation_rows"],
+        "expected_validation_batch_count": batch_contract["validation_batch_count"],
+    }
+    if any(
+        value[key] != expected_value
+        for key, expected_value in expected_batch_fields.items()
+    ):
+        raise Phase0BlockedError("training release batch contract does not match manifest/config")
     if any(
         not isinstance(value[key], bool)
         for key in (
@@ -121,6 +210,7 @@ def _validate_release_record(value: dict[str, Any]) -> None:
             "formal_training_authorized",
             "patient_level_claim_allowed",
             "test_access_authorized",
+            "drop_last",
         )
     ):
         raise Phase0BlockedError("release authorization fields must be Boolean")
@@ -532,7 +622,8 @@ def _perform_preflight(
     bundle = validate_manifest(data_root, manifest, check_files=True, reconcile_disk=True)
     passed.extend(["manifest_and_disk", "slide_id_isolation"])
     release = _read_json_strict(release_path)
-    _validate_release_record(release)
+    batch_contract = _batch_contract(config, bundle)
+    _validate_release_record(release, config, batch_contract)
     mapping_evidence: dict[str, Any] = {
         "status": PATIENT_LEVEL_ISOLATION,
         "reason": "patient identity is outside the CAM16 Phase 1 claim scope",
@@ -567,13 +658,16 @@ def _perform_preflight(
         and release["patient_level_isolation"] == PATIENT_LEVEL_ISOLATION
         and release["patient_level_claim_allowed"] is PATIENT_LEVEL_CLAIM_ALLOWED
     ):
-        passed.append("phase0_release")
+        passed.append("phase1_training_release")
     else:
-        blocked.append("phase0_release")
+        blocked.append("phase1_training_release")
     report = {
-        "schema": "phase0-preflight-report-v1",
+        "schema": "phase1-training-preflight-report-v1",
         "status": "PASS" if not blocked else "FAIL",
         "config_hash": config.sha256,
+        "normalized_config_sha256": config.sha256,
+        "release_id": release["release_id"],
+        "batch_contract": batch_contract,
         "code_revision": _git_revision(),
         "code_identity": _source_code_identity(),
         "source_manifest_sha256": bundle.source_manifest_sha256,
@@ -620,6 +714,12 @@ def _formal_output_base(config: ExperimentConfig) -> Path:
     source_parent = config.source.parent
     base = source_parent.parent if source_parent.name == "configs" else source_parent
     return _runtime_path(base, str(config.execution["output_root"]))
+
+
+def _formal_datasets(bundle: ManifestBundle) -> tuple[PatchDataset, PatchDataset]:
+    """Build only the train and validation datasets used by formal training."""
+
+    return PatchDataset(bundle, "train"), PatchDataset(bundle, "val")
 
 
 def _epoch_number(path: Path) -> int:
@@ -831,8 +931,7 @@ def run_formal_training(
         with normalized_path.open("xb") as handle:
             handle.write(config.normalized_bytes + b"\n")
     device = torch.device(str(config.execution["device"]))
-    train_dataset = PatchDataset(bundle, "train")
-    val_dataset = PatchDataset(bundle, "val")
+    train_dataset, val_dataset = _formal_datasets(bundle)
     run_results: list[dict[str, Any]] = []
     for seed_value in config.training["seeds"]:
         seed = int(seed_value)
@@ -874,7 +973,7 @@ def run_formal_training(
         "runs": run_results,
         "multi_seed_validation_slide_auroc": aggregation,
         "test_split_accessed": False,
-        "phase0_preflight": "PASS",
+        "phase1_training_preflight": "PASS",
     }
     _write_json_exclusive(output_base / "training_summary.json", final_report)
     return final_report

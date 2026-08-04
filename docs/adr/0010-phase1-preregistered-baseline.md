@@ -16,3 +16,11 @@ train/validation baseline. Patient-level isolation is `not_evaluated`, the patie
 level claim flag is false, and no patient mapping or approval artifact is a release
 input. No WSI input, candidate generation, physical deployment, stain
 normalization, adaptive optical parameter, or transfer dataset is added.
+
+Amendment, 2026-08-04: the human-approved batch-32 revision is a new formal
+training-contract identity, `phase1-cam16-baseline-b32-v2`, bound by
+`configs/phase1_training_release_b32_v2.json`. The batch-4 decision and
+`phase0-closed-v1` tag remain historical evidence. Learning rate `0.001`, the
+20-epoch cap, optimizer parameters, evaluation rules, seeds, fixed frontend, and
+test prohibition are unchanged. Their suitability under the lower optimizer-step
+budget is not claimed without formal training evidence.

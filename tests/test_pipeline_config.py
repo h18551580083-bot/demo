@@ -65,7 +65,7 @@ beta2 = "0.999"
 epsilon = "0.00000001"
 weight_decay = "0.0001"
 scheduler = "none"
-batch_size = 4
+batch_size = 32
 max_epochs = 20
 early_stopping_patience = 5
 early_stopping_min_delta = "0"
@@ -122,6 +122,7 @@ def test_config_is_strict_normalized_and_hashed(tmp_path: Path) -> None:
     assert config.schema_version == "phase0-experiment-config-v1"
     assert config.execution_kind == "dry_run"
     assert config.data["identity_level"] == "slide_id"
+    assert config.training["batch_size"] == 32
     assert config.training["seeds"] == (1729, 3407, 7919)
     assert config.normalized_bytes == canonical_json_bytes(config.as_dict())
     assert config.sha256 == "sha256:" + hashlib.sha256(config.normalized_bytes).hexdigest()
@@ -170,7 +171,7 @@ def test_canonical_json_rejects_non_jcs_values_and_preserves_unicode() -> None:
     ("old", "new"),
     [
         ('learning_rate = "0.001"', 'learning_rate = "0.002"'),
-        ("batch_size = 4", "batch_size = 8"),
+        ("batch_size = 32", "batch_size = 31"),
         ("seeds = [1729, 3407, 7919]", "seeds = [1, 2, 3]"),
         ('checkpoint_metric = "val_slide_auroc"', 'checkpoint_metric = "patch_auroc"'),
         (

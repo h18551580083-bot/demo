@@ -156,6 +156,7 @@ def _documentation_audit(repository: Path) -> dict[str, Any]:
         "docs/PHASE0_ACCEPTANCE_MATRIX.md",
         "docs/PHASE0_GAP_REGISTER.md",
         "docs/TRAINING_PROTOCOL.md",
+        "docs/PHASE1_TRAINING_RUNBOOK.md",
         "docs/EVALUATION_PROTOCOL.md",
         "docs/adr/0010-phase1-preregistered-baseline.md",
     ]
@@ -319,13 +320,15 @@ def run_phase0_acceptance(
         },
         {
             "gate": "formal_training_release",
-            "result": "PASS" if "phase0_release" in preflight["passed_gates"] else "FAIL",
+            "result": (
+                "PASS" if "phase1_training_release" in preflight["passed_gates"] else "FAIL"
+            ),
             "command": "python -m cg_pipeline preflight ...",
             "evidence": str(Path(release_path)),
             "blocker": (
                 None
-                if "phase0_release" in preflight["passed_gates"]
-                else "Phase 0 release record remains closed"
+                if "phase1_training_release" in preflight["passed_gates"]
+                else "Phase 1 training release did not pass"
             ),
         },
     ]

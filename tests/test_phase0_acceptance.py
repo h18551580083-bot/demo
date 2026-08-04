@@ -26,6 +26,7 @@ def _write_required_documentation(root: Path) -> None:
         "docs/PHASE0_ACCEPTANCE_MATRIX.md",
         "docs/PHASE0_GAP_REGISTER.md",
         "docs/TRAINING_PROTOCOL.md",
+        "docs/PHASE1_TRAINING_RUNBOOK.md",
         "docs/EVALUATION_PROTOCOL.md",
         "docs/adr/0010-phase1-preregistered-baseline.md",
     ]

@@ -62,8 +62,8 @@ python -m cg_pipeline dry-run `
 python -m cg_pipeline preflight `
   --config configs\phase1_baseline.toml `
   --data-root cam16_patch `
-  --release configs\phase0_release.json `
-  --output artifacts\phase0_preflight.json
+  --release configs\phase1_training_release_b32_v2.json `
+  --output artifacts\phase1_b32_preflight.json
 ```
 
 The dry run is synthetic and cannot support a performance claim. The formal
@@ -79,12 +79,17 @@ preflight inputs.
 
 Phase 0 is closed. The formal entry still runs preflight before the first batch:
 
+The active formal identity is `phase1-cam16-baseline-b32-v2`, with batch size 32,
+2,487 train updates per complete epoch, and at most 49,740 updates over 20 epochs.
+Run the controlled checklist in `docs/PHASE1_TRAINING_RUNBOOK.md`; do not reuse the
+historical unbound `configs/phase0_release.json` for this revised contract.
+
 ```powershell
 $env:PYTHONPATH = 'E:\cg\src'
 python -m cg_pipeline train `
   --config configs\phase1_baseline.toml `
   --data-root cam16_patch `
-  --release configs\phase0_release.json
+  --release configs\phase1_training_release_b32_v2.json
 ```
 
 Training never loads the test split. Test evaluation requires a later, separate

@@ -5,6 +5,12 @@ Audit date: 2026-08-03. Scope is the eleven deliverables in
 fail-closed acceptance, and an evidence artifact. Decision 30 formal RTX 4090
 acceptance remains separate from repository-wide Phase 0 closure.
 
+The 2026-08-04 Phase 1 batch-32 contract revision does not rewrite this historical
+Phase 0 acceptance. Active training preflight now consumes the hash-bound
+`configs/phase1_training_release_b32_v2.json`; its commands are in
+`docs/PHASE1_TRAINING_RUNBOOK.md`. Commands below remain the historical
+`phase0-closed-v1` evidence and are not current-checkout Phase 1 commands.
+
 ## Deliverables
 
 | ID | Deliverable | Code | Configuration | Test / command | Acceptance rule | Evidence | Status |

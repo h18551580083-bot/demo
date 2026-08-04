@@ -419,6 +419,16 @@ class _WorkerSeeder:
         torch.manual_seed(seed)
 
 
+def expected_batch_count(row_count: int, batch_size: int, *, drop_last: bool) -> int:
+    """Return the exact DataLoader batch count for the locked drop policy."""
+
+    if row_count < 0 or batch_size < 1:
+        raise DataContractError("row_count and batch_size are illegal")
+    if drop_last:
+        return row_count // batch_size
+    return (row_count + batch_size - 1) // batch_size
+
+
 def build_dataloader(
     dataset: PatchDataset,
     *,

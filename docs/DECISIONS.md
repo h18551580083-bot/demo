@@ -1572,3 +1572,44 @@ Release disposition:
   an external Phase 0 blocker, that the patient-level gate remained unmet, or that
   the release had to remain closed for that reason. Historical text remains as an
   audit trail but is no longer normative.
+
+## 2026-08-04 — Approve Phase 1 formal batch-size revision to 32
+
+Human approval and scope:
+
+- The formal Phase 1 training batch size is revised from 4 to 32 to improve
+  RTX 4090 24 GB hardware utilization. The historical batch-size-4 decision above
+  remains unchanged as an audit record.
+- This revision does not start a formal training run or expand authorization to
+  test access, a split or manifest change, or any change to the fixed optical
+  frontend or model structure.
+
+Approved direct consequences:
+
+- With 79,570 train rows and `drop_last = false`, a complete epoch contains
+  `ceil(79570 / 32) = 2487` optimizer updates and covers every train row exactly
+  once. The 20-epoch maximum is 49,740 updates, replacing the historical batch-4
+  budgets of 19,893 updates per epoch and 397,860 maximum updates.
+- Validation reuses the same configured batch size. Its 18,171 rows therefore
+  produce `ceil(18171 / 32) = 568` batches, including the final partial batch; all
+  validation rows remain covered.
+- The revised formal run identity is `phase1-cam16-baseline-b32-v2`. Its normalized
+  config hash is
+  `sha256:e44768d80d7c1545138d7d5e1368de4ed53b7b07b71202e2c5bdee6efac7cf3b`,
+  superseding batch-4 hash
+  `sha256:0653ae0003dac9062b73749e879a9a541a3f9dae18b034bdc1632f8410910e75`.
+  The historical `phase0-closed-v1` tag and `configs/phase0_release.json` are not
+  overwritten; the active revision is
+  `configs/phase1_training_release_b32_v2.json`.
+
+Unchanged contract and deferred empirical question:
+
+- AdamW, learning rate `0.001`, betas `(0.9, 0.999)`, epsilon `0.00000001`, weight
+  decay `0.0001`, no scheduler, no class weighting, no augmentation, no gradient
+  clipping, at most 20 epochs, patience 5/minimum delta 0, seeds `1729`, `3407`,
+  `7919`, immutable per-complete-epoch checkpoints, validation slide-AUROC
+  selection, and the final-once test prohibition remain unchanged.
+- The learning rate is not changed by a linear-scaling rule. Batch 32 and batch 4
+  do not have the same optimizer-step budget. Whether learning rate or epoch budget
+  needs a separate future revision will be judged from validation convergence
+  curves after an authorized formal run; no suitability claim is made now.

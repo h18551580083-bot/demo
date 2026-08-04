@@ -39,9 +39,12 @@ closure authorization recorded in `docs/DECISIONS.md`, work in this phase may:
 
 Phase 0 did **not** itself authorize formal model training, comparative experiments,
 test-set evaluation, or transfer evaluation. The synthetic dry run remains
-explicitly non-formal. The current `configs/phase0_release.json` authorizes only the
-frozen Phase 1 CAM16 train/validation baseline after preflight passes; final test
-and transfer evaluation remain prohibited.
+explicitly non-formal. The current
+`configs/phase1_training_release_b32_v2.json` binds the revised frozen Phase 1
+CAM16 train/validation baseline to its normalized configuration hash after
+preflight passes; the historical `configs/phase0_release.json` and
+`phase0-closed-v1` tag remain unchanged. Final test and transfer evaluation remain
+prohibited.
 
 ## 3. Locked project scope
 
@@ -1295,7 +1298,11 @@ authorization. Executable values occur only in `configs/phase1_baseline.toml`:
    in Section 3.15 and `docs/EVALUATION_PROTOCOL.md`.
 4. Seeds, batch/epoch budget, early stopping, checkpoint/resume, failed-run,
    multi-seed, 2000-replicate confidence interval, and final-once test rules are
-   frozen in the two protocol documents and the unique configuration.
+   frozen in the two protocol documents and the unique configuration. Under the
+   explicit 2026-08-04 revision, batch size is 32 with `drop_last = false`: 79,570
+   train rows give 2,487 optimizer updates per complete epoch and 49,740 maximum
+   updates at 20 epochs; validation reuses batch 32 and retains all 18,171 rows in
+   568 batches. The AdamW learning rate remains `0.001` without linear scaling.
 5. Transfer datasets, physical-scale adaptation, and transfer protocol are not part
    of the CAM16 Phase 1 starting baseline. They require a later separate
    preregistration and do not authorize transfer work now.
