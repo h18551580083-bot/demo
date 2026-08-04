@@ -97,17 +97,13 @@ class PreflightReport(TypedDict):
     effective_split_hashes: dict[str, str]
     manifest_identity: ManifestIdentity
     split_counts: dict[str, int]
-    label_counts: dict[str, dict[str, int]]
+    label_counts: dict[str, int]
     disk_inventory: dict[str, Any]
     isolation: dict[str, Any]
     isolation_claim: str
     patient_level_isolation: str
     patient_level_claim_allowed: bool
     patient_mapping: dict[str, Any]
-    fixed_frontend_identity: dict[str, str]
-    morlet_spectral_coverage: dict[str, Any]
-    optimizer_ownership: dict[str, Any]
-    determinism: dict[str, Any]
     configured_device: str
     effective_preflight_device: str
     passed_gates: list[str]
@@ -131,6 +127,14 @@ _RELEASE_COMMIT_ALLOWED_PATHS = (
     "docs/PHASE1_TRAINING_RUNBOOK.md",
 )
 _PREFLIGHT_REPORT_FIELDS = frozenset(PreflightReport.__required_keys__)
+_PREFLIGHT_INTERNAL_EVIDENCE_FIELDS = frozenset(
+    {
+        "fixed_frontend_identity",
+        "morlet_spectral_coverage",
+        "optimizer_ownership",
+        "determinism",
+    }
+)
 _PREFLIGHT_PASSED_GATES = [
     "configuration",
     "manifest_and_disk",
@@ -924,7 +928,7 @@ def run_preflight(
     output_path: Path | str,
 ) -> PreflightReport:
     config = load_experiment_config(config_path)
-    report, _ = _perform_preflight(
+    detailed_report, _ = _perform_preflight(
         config,
         data_root=Path(data_root).resolve(),
         release_path=Path(release_path).resolve(),
@@ -938,6 +942,11 @@ def run_preflight(
             "preflight report path must be artifacts/preflight/"
             f"{_APPROVED_RELEASE_ID}/preflight.json"
         )
+    report = {
+        key: value
+        for key, value in detailed_report.items()
+        if key not in _PREFLIGHT_INTERNAL_EVIDENCE_FIELDS
+    }
     report["report_identity"] = _preflight_report_identity(report)
     _write_json_exclusive(Path(output_path), report)
     return cast(PreflightReport, report)
@@ -967,14 +976,6 @@ def _validate_preflight_report_for_training(
         raise Phase0BlockedError("preflight report fields do not match the frozen schema")
     if report.get("report_identity") != _preflight_report_identity(report):
         raise Phase0BlockedError("preflight report identity is missing or mismatched")
-    created_at = report.get("created_at")
-    if not isinstance(created_at, str):
-        raise Phase0BlockedError("preflight report created_at is missing")
-    try:
-        datetime.fromisoformat(created_at.replace("Z", "+00:00"))
-    except ValueError as error:
-        raise Phase0BlockedError("preflight report created_at is invalid") from error
-
     repository_root = _repository_root_for_config(config)
     expected_report_path = (
         repository_root / "artifacts" / "preflight" / _APPROVED_RELEASE_ID / "preflight.json"

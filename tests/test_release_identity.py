@@ -547,6 +547,58 @@ def test_train_rejects_governance_tamper_even_if_report_hash_is_recomputed(
         )
 
 
+def test_train_rejects_injected_internal_evidence_even_if_hash_is_recomputed(
+    tmp_path: Path,
+) -> None:
+    data_root = _synthetic_data(tmp_path)
+    repository, config_path, release_path = _released_repository(tmp_path, data_root)
+    report_path = _report_path(repository)
+    run_preflight(
+        config_path,
+        data_root=data_root,
+        release_path=release_path,
+        output_path=report_path,
+    )
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    report["fixed_frontend_identity"] = {"forged": "sha256:" + "0" * 64}
+    report["report_identity"] = _recompute_report_identity(report)
+    report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+
+    with pytest.raises(Phase0BlockedError, match="frozen schema"):
+        run_formal_training(
+            config_path,
+            data_root=data_root,
+            release_path=release_path,
+            preflight_report_path=report_path,
+        )
+
+
+def test_train_treats_created_at_as_audit_only_without_expiry(tmp_path: Path) -> None:
+    data_root = _synthetic_data(tmp_path)
+    repository, config_path, release_path = _released_repository(tmp_path, data_root)
+    report_path = _report_path(repository)
+    run_preflight(
+        config_path,
+        data_root=data_root,
+        release_path=release_path,
+        output_path=report_path,
+    )
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    report["created_at"] = "1900-01-01T00:00:00Z"
+    report["report_identity"] = _recompute_report_identity(report)
+    report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    output_root = repository / "artifacts" / "formal_runs" / "phase1-cam16-baseline-b32-v2"
+    output_root.mkdir(parents=True)
+
+    with pytest.raises(FileExistsError):
+        run_formal_training(
+            config_path,
+            data_root=data_root,
+            release_path=release_path,
+            preflight_report_path=report_path,
+        )
+
+
 def test_preflight_api_and_cli_reject_existing_release_bound_report_path(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
