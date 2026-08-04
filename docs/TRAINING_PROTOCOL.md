@@ -8,7 +8,8 @@ RFC 8785-subset JSON bytes and their SHA-256 are written before a formal run.
 Unknown fields, missing fields, TOML floating values, illegal values, and `TBD`
 fail before model construction.
 
-The active batch-32 training configuration is `phase1-cam16-baseline-b32-v2`,
+The active batch-32 training configuration is `phase1-cam16-baseline-b32-v2`.
+Once its exact three-file release commit and annotated tag are present, it is
 released under governance identity `phase1-training-b32-v3` by
 `configs/phase1_training_release_b32_v3.json`. Its normalized configuration hash
 is `sha256:e44768d80d7c1545138d7d5e1368de4ed53b7b07b71202e2c5bdee6efac7cf3b`.
@@ -83,10 +84,13 @@ the checkpoint-file hash, and restore recomputes the electronic model, optimizer
 and canonical fixed-front-end identities. Test rows are not loaded by training or
 validation.
 
-The entry requires one standalone preflight report created from the active v3
-release. `train --preflight-report` verifies the report hash and recomputes current
+The entry requires one standalone preflight report created from the published v3
+release. `train --preflight-report` verifies the exact report schema and canonical
+hash, then recomputes current
 HEAD/tag/release/config/source-manifest and train/validation effective identities;
-it does not repeat the full model/optimizer/spectral preflight. A patient mapping or mapping-approval file is not an input or
+it also rechecks the frozen governance fields, while `created_at` remains audit-only
+and has no expiry gate. It does not repeat the full model/optimizer/spectral
+preflight. A patient mapping or mapping-approval file is not an input or
 prerequisite. Every preflight and training report records
 `group_id/slide_id split isolation verified`,
 `patient_level_isolation = not_evaluated`, and

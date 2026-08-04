@@ -38,3 +38,8 @@ SHA-256 and the domain-separated train/validation effective identities; no test
 effective identity is frozen or computed by formal preflight. The unchanged v2 Run
 ID remains the training-configuration identity, while v3 is explicitly the release-
 governance identity.
+
+This amendment becomes an active release only when the three allowlisted files,
+including its `docs/DECISIONS.md` record, are committed together and the annotated
+tag resolves exactly to that release commit. Until then it describes the approved
+publication design, not a published v3 release.

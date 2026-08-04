@@ -39,7 +39,8 @@ closure authorization recorded in `docs/DECISIONS.md`, work in this phase may:
 
 Phase 0 did **not** itself authorize formal model training, comparative experiments,
 test-set evaluation, or transfer evaluation. The synthetic dry run remains
-explicitly non-formal. The current
+explicitly non-formal. When the exact annotated `phase1-training-b32-v3` tag exists
+and resolves to its three-file release commit,
 `configs/phase1_training_release_b32_v3.json` binds the revised frozen Phase 1
 CAM16 train/validation baseline to its normalized configuration, approved source
 manifest, train/validation effective split identities, formal code commit, release
@@ -49,6 +50,11 @@ and train/validation data identities without repeating the full preflight. The
 historical `configs/phase0_release.json` and
 `phase0-closed-v1` tag remain unchanged. Final test and transfer evaluation remain
 prohibited.
+
+Before all of those publication objects exist together, v3 is a release candidate
+and the preceding immutable release remains the latest published evidence. The v3
+validator fails closed across this transition; the release commit records the
+approval in `docs/DECISIONS.md`.
 
 The unchanged Run ID `phase1-cam16-baseline-b32-v2` is the training-configuration
 identity. `phase1-training-b32-v3` is a distinct release-governance identity and

@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+import cg_pipeline.pipeline as pipeline_module
 from cg_pipeline.__main__ import main
 from cg_pipeline.config import load_experiment_config
 from cg_pipeline.data import expected_batch_count, validate_manifest
@@ -26,6 +27,22 @@ RELEASE_COMMIT_ALLOWED_PATHS = [
     "docs/DECISIONS.md",
     "docs/PHASE1_TRAINING_RUNBOOK.md",
 ]
+
+
+def _report_path(repository: Path) -> Path:
+    return repository / "artifacts" / "preflight" / RELEASE_ID / "preflight.json"
+
+
+def _recompute_report_identity(report: dict[str, object]) -> str:
+    material = {key: value for key, value in report.items() if key != "report_identity"}
+    encoded = json.dumps(
+        material,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+    return "sha256:" + hashlib.sha256(encoded).hexdigest()
 
 
 def _git(repository: Path, *args: str) -> str:
@@ -165,7 +182,7 @@ def _amend_release_document(repository: Path, release_path: Path, **changes: obj
 def test_preflight_accepts_exact_two_commit_release_identity(tmp_path: Path) -> None:
     data_root = _synthetic_data(tmp_path)
     repository, config_path, release_path = _released_repository(tmp_path, data_root)
-    report_path = repository / "artifacts" / "preflight" / RELEASE_ID / "preflight.json"
+    report_path = _report_path(repository)
 
     report = run_preflight(
         config_path,
@@ -204,7 +221,7 @@ def test_preflight_accepts_exact_two_commit_release_identity(tmp_path: Path) -> 
 def test_train_rejects_tampered_preflight_report_before_training(tmp_path: Path) -> None:
     data_root = _synthetic_data(tmp_path)
     repository, config_path, release_path = _released_repository(tmp_path, data_root)
-    report_path = repository / "artifacts" / "preflight" / RELEASE_ID / "preflight.json"
+    report_path = _report_path(repository)
     run_preflight(
         config_path,
         data_root=data_root,
@@ -375,14 +392,14 @@ def test_cli_and_api_preflight_reports_have_consistent_contents(
 ) -> None:
     data_root = _synthetic_data(tmp_path)
     repository, config_path, release_path = _released_repository(tmp_path, data_root)
-    api_path = repository / "api-preflight.json"
-    cli_path = repository / "cli-preflight.json"
+    report_path = _report_path(repository)
     api_report = run_preflight(
         config_path,
         data_root=data_root,
         release_path=release_path,
-        output_path=api_path,
+        output_path=report_path,
     )
+    report_path.unlink()
 
     exit_code = main(
         [
@@ -394,11 +411,11 @@ def test_cli_and_api_preflight_reports_have_consistent_contents(
             "--release",
             str(release_path),
             "--output",
-            str(cli_path),
+            str(report_path),
         ]
     )
     captured = capsys.readouterr()
-    cli_report = json.loads(cli_path.read_text(encoding="utf-8"))
+    cli_report = json.loads(report_path.read_text(encoding="utf-8"))
     for report in (api_report, cli_report):
         report.pop("created_at")
         report.pop("report_identity")
@@ -439,7 +456,7 @@ def test_preflight_rejects_unsafe_claim_or_stale_config_through_public_api(
 def test_train_rejects_preflight_report_from_previous_release_commit(tmp_path: Path) -> None:
     data_root = _synthetic_data(tmp_path)
     repository, config_path, release_path = _released_repository(tmp_path, data_root)
-    report_path = repository / "artifacts" / "preflight" / RELEASE_ID / "preflight.json"
+    report_path = _report_path(repository)
     run_preflight(
         config_path,
         data_root=data_root,
@@ -466,7 +483,7 @@ def test_train_cli_and_api_reject_same_tampered_report(
 ) -> None:
     data_root = _synthetic_data(tmp_path)
     repository, config_path, release_path = _released_repository(tmp_path, data_root)
-    report_path = repository / "artifacts" / "preflight" / RELEASE_ID / "preflight.json"
+    report_path = _report_path(repository)
     run_preflight(
         config_path,
         data_root=data_root,
@@ -502,3 +519,165 @@ def test_train_cli_and_api_reject_same_tampered_report(
     assert exit_code == 2
     assert "BLOCKED:" in captured.err
     assert "preflight report identity" in captured.err
+
+
+def test_train_rejects_governance_tamper_even_if_report_hash_is_recomputed(
+    tmp_path: Path,
+) -> None:
+    data_root = _synthetic_data(tmp_path)
+    repository, config_path, release_path = _released_repository(tmp_path, data_root)
+    report_path = _report_path(repository)
+    run_preflight(
+        config_path,
+        data_root=data_root,
+        release_path=release_path,
+        output_path=report_path,
+    )
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    report["patient_level_isolation"] = "verified"
+    report["report_identity"] = _recompute_report_identity(report)
+    report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+
+    with pytest.raises(Phase0BlockedError, match="patient_level_isolation"):
+        run_formal_training(
+            config_path,
+            data_root=data_root,
+            release_path=release_path,
+            preflight_report_path=report_path,
+        )
+
+
+def test_preflight_api_and_cli_reject_existing_release_bound_report_path(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    data_root = _synthetic_data(tmp_path)
+    repository, config_path, release_path = _released_repository(tmp_path, data_root)
+    report_path = _report_path(repository)
+    report_path.parent.mkdir(parents=True)
+    report_path.write_text("old report\n", encoding="utf-8")
+
+    with pytest.raises(FileExistsError):
+        run_preflight(
+            config_path,
+            data_root=data_root,
+            release_path=release_path,
+            output_path=report_path,
+        )
+    exit_code = main(
+        [
+            "preflight",
+            "--config",
+            str(config_path),
+            "--data-root",
+            str(data_root),
+            "--release",
+            str(release_path),
+            "--output",
+            str(report_path),
+        ]
+    )
+    captured = capsys.readouterr()
+    assert exit_code == 3
+    assert "FileExistsError" in captured.err
+
+
+def test_train_api_and_cli_reject_existing_formal_output(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    data_root = _synthetic_data(tmp_path)
+    repository, config_path, release_path = _released_repository(tmp_path, data_root)
+    report_path = _report_path(repository)
+    run_preflight(
+        config_path,
+        data_root=data_root,
+        release_path=release_path,
+        output_path=report_path,
+    )
+    output_root = repository / "artifacts" / "formal_runs" / "phase1-cam16-baseline-b32-v2"
+    output_root.mkdir(parents=True)
+
+    with pytest.raises(FileExistsError):
+        run_formal_training(
+            config_path,
+            data_root=data_root,
+            release_path=release_path,
+            preflight_report_path=report_path,
+        )
+    exit_code = main(
+        [
+            "train",
+            "--config",
+            str(config_path),
+            "--data-root",
+            str(data_root),
+            "--release",
+            str(release_path),
+            "--preflight-report",
+            str(report_path),
+        ]
+    )
+    captured = capsys.readouterr()
+    assert exit_code == 3
+    assert "FileExistsError" in captured.err
+
+
+def test_train_cli_and_api_consume_same_report_without_repeating_preflight(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    data_root = _synthetic_data(tmp_path)
+    repository, config_path, release_path = _released_repository(tmp_path, data_root)
+    report_path = _report_path(repository)
+    run_preflight(
+        config_path,
+        data_root=data_root,
+        release_path=release_path,
+        output_path=report_path,
+    )
+
+    def fake_seed(*args: object, seed: int, **kwargs: object) -> dict[str, object]:
+        return {
+            "seed": seed,
+            "best_epoch": 1,
+            "best_validation_slide_auroc": 0.5,
+            "epochs_completed": 1,
+            "status": "complete",
+        }
+
+    monkeypatch.setattr(pipeline_module, "_run_formal_seed", fake_seed)
+    monkeypatch.setattr(
+        pipeline_module,
+        "_perform_preflight",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("training repeated standalone preflight")
+        ),
+    )
+    api_summary = run_formal_training(
+        config_path,
+        data_root=data_root,
+        release_path=release_path,
+        preflight_report_path=report_path,
+    )
+    output_root = repository / "artifacts" / "formal_runs" / "phase1-cam16-baseline-b32-v2"
+    shutil.rmtree(output_root)
+
+    exit_code = main(
+        [
+            "train",
+            "--config",
+            str(config_path),
+            "--data-root",
+            str(data_root),
+            "--release",
+            str(release_path),
+            "--preflight-report",
+            str(report_path),
+        ]
+    )
+    captured = capsys.readouterr()
+    cli_summary = json.loads((output_root / "training_summary.json").read_text(encoding="utf-8"))
+
+    assert exit_code == 0
+    assert json.loads(captured.out)["status"] == "PASS"
+    assert api_summary == cli_summary

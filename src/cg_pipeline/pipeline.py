@@ -11,7 +11,7 @@ import sys
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
-from typing import Any, TypedDict
+from typing import Any, TypedDict, cast
 
 import numpy as np
 import torch
@@ -64,6 +64,60 @@ class BatchContract(TypedDict):
     validation_batch_count: int
 
 
+class ReleaseIdentity(TypedDict):
+    release_id: str
+    annotated_tag: str
+    formal_code_commit: str
+    release_commit: str
+    release_commit_parent_count: int
+    release_commit_allowed_paths: list[str]
+
+
+class ManifestIdentity(TypedDict):
+    manifest_relpath: str
+    manifest_hash_algorithm: str
+    source_manifest_hash_rule: str
+    effective_split_hash_rule: str
+    source_manifest_sha256: str
+    effective_split_hashes: dict[str, str]
+
+
+class PreflightReport(TypedDict):
+    schema: str
+    created_at: str
+    status: str
+    config_hash: str
+    normalized_config_sha256: str
+    release_id: str
+    batch_contract: BatchContract
+    code_revision: str
+    code_identity: str
+    release_identity: ReleaseIdentity
+    source_manifest_sha256: str
+    effective_split_hashes: dict[str, str]
+    manifest_identity: ManifestIdentity
+    split_counts: dict[str, int]
+    label_counts: dict[str, dict[str, int]]
+    disk_inventory: dict[str, Any]
+    isolation: dict[str, Any]
+    isolation_claim: str
+    patient_level_isolation: str
+    patient_level_claim_allowed: bool
+    patient_mapping: dict[str, Any]
+    fixed_frontend_identity: dict[str, str]
+    morlet_spectral_coverage: dict[str, Any]
+    optimizer_ownership: dict[str, Any]
+    determinism: dict[str, Any]
+    configured_device: str
+    effective_preflight_device: str
+    passed_gates: list[str]
+    not_applicable_gates: list[str]
+    blocking_gates: list[str]
+    training_started: bool
+    test_split_accessed: bool
+    report_identity: str
+
+
 class Phase0BlockedError(RuntimeError):
     """Formal training was prevented before its first batch."""
 
@@ -76,6 +130,18 @@ _RELEASE_COMMIT_ALLOWED_PATHS = (
     "docs/DECISIONS.md",
     "docs/PHASE1_TRAINING_RUNBOOK.md",
 )
+_PREFLIGHT_REPORT_FIELDS = frozenset(PreflightReport.__required_keys__)
+_PREFLIGHT_PASSED_GATES = [
+    "configuration",
+    "manifest_and_disk",
+    "slide_id_isolation",
+    "fixed_frontend",
+    "morlet_spectral_coverage",
+    "optimizer_ownership",
+    "precision_and_determinism",
+    "test_access_disabled",
+    "phase1_training_release",
+]
 
 
 def _write_json_exclusive(path: Path, value: dict[str, Any]) -> None:
@@ -167,7 +233,7 @@ def _repository_root_for_config(config: ExperimentConfig) -> Path:
 
 def _validate_git_release_identity(
     value: dict[str, Any], *, repository_root: Path, release_path: Path
-) -> dict[str, Any]:
+) -> ReleaseIdentity:
     expected_release_path = repository_root / _RELEASE_COMMIT_ALLOWED_PATHS[0]
     if release_path.resolve() != expected_release_path.resolve():
         raise Phase0BlockedError("release path is not the approved Phase 1 release path")
@@ -231,7 +297,7 @@ def _validate_release_record(
     *,
     repository_root: Path,
     release_path: Path,
-) -> dict[str, Any]:
+) -> ReleaseIdentity:
     expected = {
         "schema",
         "release_id",
@@ -856,16 +922,25 @@ def run_preflight(
     data_root: Path | str,
     release_path: Path | str,
     output_path: Path | str,
-) -> dict[str, Any]:
+) -> PreflightReport:
     config = load_experiment_config(config_path)
     report, _ = _perform_preflight(
         config,
         data_root=Path(data_root).resolve(),
         release_path=Path(release_path).resolve(),
     )
+    repository_root = _repository_root_for_config(config)
+    expected_output = (
+        repository_root / "artifacts" / "preflight" / _APPROVED_RELEASE_ID / "preflight.json"
+    ).resolve()
+    if Path(output_path).resolve() != expected_output:
+        raise Phase0BlockedError(
+            "preflight report path must be artifacts/preflight/"
+            f"{_APPROVED_RELEASE_ID}/preflight.json"
+        )
     report["report_identity"] = _preflight_report_identity(report)
     _write_json_exclusive(Path(output_path), report)
-    return report
+    return cast(PreflightReport, report)
 
 
 def _preflight_report_identity(report: dict[str, Any]) -> str:
@@ -886,8 +961,10 @@ def _validate_preflight_report_for_training(
     data_root: Path,
     release_path: Path,
     preflight_report_path: Path,
-) -> tuple[dict[str, Any], ManifestBundle, dict[str, Any], Path]:
+) -> tuple[PreflightReport, ManifestBundle, ReleaseIdentity, Path]:
     report = _read_json_strict(preflight_report_path)
+    if set(report) != _PREFLIGHT_REPORT_FIELDS:
+        raise Phase0BlockedError("preflight report fields do not match the frozen schema")
     if report.get("report_identity") != _preflight_report_identity(report):
         raise Phase0BlockedError("preflight report identity is missing or mismatched")
     created_at = report.get("created_at")
@@ -899,6 +976,11 @@ def _validate_preflight_report_for_training(
         raise Phase0BlockedError("preflight report created_at is invalid") from error
 
     repository_root = _repository_root_for_config(config)
+    expected_report_path = (
+        repository_root / "artifacts" / "preflight" / _APPROVED_RELEASE_ID / "preflight.json"
+    ).resolve()
+    if preflight_report_path.resolve() != expected_report_path:
+        raise Phase0BlockedError("preflight report path does not match the approved release identity")
     manifest = data_root / Path(*PurePosixPath(str(config.data["manifest_relpath"])).parts)
     bundle = validate_manifest(
         data_root,
@@ -917,7 +999,7 @@ def _validate_preflight_report_for_training(
         repository_root=repository_root,
         release_path=release_path,
     )
-    expected_manifest_identity = {
+    expected_manifest_identity: ManifestIdentity = {
         "manifest_relpath": release["manifest_relpath"],
         "manifest_hash_algorithm": release["manifest_hash_algorithm"],
         "source_manifest_hash_rule": release["source_manifest_hash_rule"],
@@ -943,13 +1025,35 @@ def _validate_preflight_report_for_training(
         == bundle.effective_split_hashes,
         "manifest_identity": report.get("manifest_identity") == expected_manifest_identity,
         "batch_contract": report.get("batch_contract") == batch_contract,
+        "split_counts": report.get("split_counts") == bundle.split_counts,
+        "label_counts": report.get("label_counts") == bundle.label_counts,
+        "disk_inventory": report.get("disk_inventory") == bundle.disk_inventory,
+        "isolation": report.get("isolation") == asdict(bundle.isolation),
+        "isolation_claim": report.get("isolation_claim")
+        == isolation_claim_fields()["isolation_claim"],
+        "patient_level_isolation": report.get("patient_level_isolation")
+        == PATIENT_LEVEL_ISOLATION,
+        "patient_level_claim_allowed": report.get("patient_level_claim_allowed")
+        is PATIENT_LEVEL_CLAIM_ALLOWED,
+        "patient_mapping": report.get("patient_mapping")
+        == {
+            "status": PATIENT_LEVEL_ISOLATION,
+            "reason": "patient identity is outside the CAM16 Phase 1 claim scope",
+        },
+        "configured_device": report.get("configured_device")
+        == str(config.execution["device"]),
+        "effective_preflight_device": report.get("effective_preflight_device")
+        == str(config.execution["device"]),
+        "passed_gates": report.get("passed_gates") == _PREFLIGHT_PASSED_GATES,
+        "not_applicable_gates": report.get("not_applicable_gates")
+        == ["patient_level_isolation"],
     }
     failed = [name for name, passed in checks.items() if not passed]
     if failed:
         raise Phase0BlockedError(
             "preflight report does not match current formal identities: " + ", ".join(failed)
         )
-    return report, bundle, release_identity, repository_root
+    return cast(PreflightReport, report), bundle, release_identity, repository_root
 
 
 def _formal_output_base(config: ExperimentConfig) -> Path:

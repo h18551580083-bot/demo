@@ -15,7 +15,7 @@ Phase 0 acceptance. Active training preflight now consumes the hash-bound
 
 | ID | Deliverable | Code | Configuration | Test / command | Acceptance rule | Evidence | Status |
 | ---: | --- | --- | --- | --- | --- | --- | --- |
-| 1 | Public experiment pipeline | `src/cg_pipeline/pipeline.py`, `__main__.py` | both Phase 0/1 TOML files | `pytest tests/test_pipeline_entrypoints.py -q` | dry/preflight/train are one public seam; train always preflights | `artifacts/phase0_dry_run_v1/report.json` | **COMPLETE** |
+| 1 | Public experiment pipeline | `src/cg_pipeline/pipeline.py`, `__main__.py` | both Phase 0/1 TOML files | `pytest tests/test_pipeline_entrypoints.py -q` | dry/preflight/train are public seams; the historical Phase 0 entry preflights, while the revised formal train seam consumes one independently generated report and live-revalidates its identities | `artifacts/phase0_dry_run_v1/report.json` | **COMPLETE** |
 | 2 | Typed end-to-end contracts | `data.py`, `frontend.py`, `interaction.py`, `pooling.py`, `model.py`, `evaluation.py` | model/data/evaluation tables | module contract tests | exact axes, shapes, dtypes, masks, identities, logits, and predictions | full pytest report | **COMPLETE** |
 | 3 | Explicit strict configuration | `config.py`, `identity.py` | `configs/phase1_baseline.toml` | `pytest tests/test_pipeline_config.py -q` | all formal scientific values exact; missing/unknown/illegal/TBD/float/mutation/test access fail; normalized SHA-256 | preflight config hash | **COMPLETE** |
 | 4 | Existing-patch CAM16 adapter | `data.py` | data table | `pytest tests/test_data_contract.py -q` | exact CSV/PNG/path/label/disk inventory; no invalid-row exclusion | preflight manifest hashes/counts | **COMPLETE** |
