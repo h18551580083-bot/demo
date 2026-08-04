@@ -235,6 +235,20 @@ def _repository_root_for_config(config: ExperimentConfig) -> Path:
     return root
 
 
+def _validate_source_tree_membership(repository_root: Path) -> None:
+    tracked = {
+        PurePosixPath(line).as_posix()
+        for line in _git_output(repository_root, "ls-files", "--", "src").splitlines()
+        if line.endswith(".py")
+    }
+    observed = {
+        path.relative_to(repository_root).as_posix()
+        for path in (repository_root / "src").rglob("*.py")
+    }
+    if observed != tracked:
+        raise Phase0BlockedError("release source tree contains untracked or missing Python code")
+
+
 def _validate_git_release_identity(
     value: dict[str, Any], *, repository_root: Path, release_path: Path
 ) -> ReleaseIdentity:
@@ -283,6 +297,7 @@ def _validate_git_release_identity(
         raise Phase0BlockedError("release commit changed paths outside the approved whitelist")
     if _git_output(repository_root, "status", "--porcelain", "--untracked-files=no"):
         raise Phase0BlockedError("tracked release worktree is not clean")
+    _validate_source_tree_membership(repository_root)
     return {
         "release_id": value["release_id"],
         "annotated_tag": value["annotated_tag"],

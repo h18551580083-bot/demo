@@ -249,6 +249,7 @@ def test_train_rejects_tampered_preflight_report_before_training(tmp_path: Path)
         ("wrong_parent", "parent does not match"),
         ("lightweight_tag", "annotated tag"),
         ("unauthorized_path", "outside the approved whitelist"),
+        ("untracked_code", "untracked or missing Python code"),
         ("wrong_release_id", "release_id"),
         ("switched_commit", "parent does not match"),
     ],
@@ -270,6 +271,10 @@ def test_preflight_rejects_invalid_git_release_identity(
         _git(repository, "add", unexpected.relative_to(repository).as_posix())
         _git(repository, "commit", "--amend", "--no-edit")
         _retag_annotated(repository)
+    elif mutation == "untracked_code":
+        (repository / "src" / "cg_pipeline" / "injected.py").write_text(
+            "INJECTED = True\n", encoding="utf-8"
+        )
     elif mutation == "wrong_release_id":
         _amend_release_document(
             repository, release_path, release_id="phase1-training-b32-v2"
