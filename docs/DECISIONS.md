@@ -1613,3 +1613,63 @@ Unchanged contract and deferred empirical question:
   do not have the same optimizer-step budget. Whether learning rate or epoch budget
   needs a separate future revision will be judged from validation convergence
   curves after an authorized formal run; no suitability claim is made now.
+
+## 2026-08-04 — Publish identity-bound Phase 1 training release v3
+
+Human-approved release correction:
+
+- Release governance identity is fixed as `phase1-training-b32-v3`; its annotated
+  tag has the same name. The unchanged Run ID
+  `phase1-cam16-baseline-b32-v2` remains the training-configuration identity. The
+  two version strings have different roles and do not imply a configuration change.
+- Formal code identity is commit
+  `174e059915fabdba687f7c904f2b184f2627a674`. The release commit must have exactly
+  one parent, that parent must be this formal code commit, and the annotated tag
+  must peel exactly to the release commit.
+- The release commit is restricted to exactly
+  `configs/phase1_training_release_b32_v3.json`, `docs/DECISIONS.md`, and
+  `docs/PHASE1_TRAINING_RUNBOOK.md`. No code, data, split, model, optimizer,
+  evaluation, or training-configuration change is permitted in that commit.
+
+Approved data identities and derivation rules:
+
+- Hash algorithm is SHA-256. Source-manifest identity is raw file bytes under rule
+  `raw-file-bytes-v1` and is frozen as
+  `sha256:23c681a3a338e4df96c2e3443b39349c4758e08009eb47d46928d148f62045ab`.
+- Effective split identities use domain rule `cg/cam16-eval-manifest/v1`. Train is
+  `sha256:8c54e7f8b1674e4e94c9a46e0d9abf01e4c0c8a88605e7831b2701c0ddbe58c5`;
+  validation is
+  `sha256:1a6fd51cb6d7ae5da920f06974a871deef2f21147f0df9c4d2c902d30ed3decc`.
+- Formal preflight recomputes and compares the source, train, and validation values
+  individually. It neither freezes nor computes a test effective-split hash.
+  `test_access_authorized = false`, `patient_level_isolation = not_evaluated`, and
+  `patient_level_claim_allowed = false` remain unchanged.
+
+Approved preflight consumption contract:
+
+- The standalone `preflight` command runs once and exclusively writes
+  `artifacts/preflight/phase1-training-b32-v3/preflight.json`. Formal
+  `train --preflight-report` consumes that report and does not repeat the full
+  model/optimizer/spectral preflight.
+- The consumed authorization report contains only fields that training can
+  reconstruct from current frozen values or live identities. Its strict schema,
+  canonical content hash, HEAD/tag/release/config/code/source-manifest/train/val
+  identities, disk/isolation state, and governance fields are all checked before
+  the first batch. A mismatch, injected field, or content corruption fails closed.
+- `created_at` is audit-only. It has no age, expiry, or future-time release gate.
+  Reuse is allowed only while every live identity still matches exactly.
+- Before using the unchanged Run ID, both the release-bound preflight path and
+  `artifacts/formal_runs/phase1-cam16-baseline-b32-v2` must be absent. Existing
+  output is never overwritten; a collision stops the run and requires a separately
+  approved identity-bearing output contract rather than mixing v2/v3 artifacts.
+
+Verification and scope:
+
+- Public CLI and Python API tests cover matching reports and fail-closed cases for
+  wrong parent SHA, multiple parents, code changes outside the whitelist,
+  lightweight tags, wrong release ID, changed commit, source/effective manifest
+  changes, old release/report identity, report tampering including recomputed
+  content hashes, and existing preflight/formal-output paths.
+- This publication authorizes only the already approved CAM16 train/validation
+  entry. It does not execute training, authorize test access, make a patient-level
+  leakage claim, alter a dataset split, or advance another phase.
