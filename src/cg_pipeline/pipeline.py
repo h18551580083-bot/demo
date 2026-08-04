@@ -9,6 +9,7 @@ import platform
 import subprocess
 import sys
 from dataclasses import asdict
+from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, TypedDict
 
@@ -68,6 +69,13 @@ class Phase0BlockedError(RuntimeError):
 
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+_APPROVED_RELEASE_ID = "phase1-training-b32-v3"
+_APPROVED_RELEASE_TAG = "phase1-training-b32-v3"
+_RELEASE_COMMIT_ALLOWED_PATHS = (
+    "configs/phase1_training_release_b32_v3.json",
+    "docs/DECISIONS.md",
+    "docs/PHASE1_TRAINING_RUNBOOK.md",
+)
 
 
 def _write_json_exclusive(path: Path, value: dict[str, Any]) -> None:
@@ -133,17 +141,116 @@ def _batch_contract(config: ExperimentConfig, bundle: ManifestBundle) -> BatchCo
     }
 
 
+def _git_output(repository_root: Path, *args: str) -> str:
+    try:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=repository_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise Phase0BlockedError(f"cannot validate Git release identity: {error}") from error
+    return result.stdout.strip()
+
+
+def _repository_root_for_config(config: ExperimentConfig) -> Path:
+    candidate = config.source.parent
+    root = Path(_git_output(candidate, "rev-parse", "--show-toplevel")).resolve()
+    try:
+        config.source.relative_to(root)
+    except ValueError as error:
+        raise Phase0BlockedError("formal configuration is outside the release repository") from error
+    return root
+
+
+def _validate_git_release_identity(
+    value: dict[str, Any], *, repository_root: Path, release_path: Path
+) -> dict[str, Any]:
+    expected_release_path = repository_root / _RELEASE_COMMIT_ALLOWED_PATHS[0]
+    if release_path.resolve() != expected_release_path.resolve():
+        raise Phase0BlockedError("release path is not the approved Phase 1 release path")
+    if value["release_id"] != _APPROVED_RELEASE_ID:
+        raise Phase0BlockedError("release_id does not match the approved release identity")
+    if value["annotated_tag"] != _APPROVED_RELEASE_TAG:
+        raise Phase0BlockedError("annotated tag does not match the approved release identity")
+    if value["release_commit_allowed_paths"] != list(_RELEASE_COMMIT_ALLOWED_PATHS):
+        raise Phase0BlockedError("release commit whitelist does not match the approved paths")
+
+    head = _git_output(repository_root, "rev-parse", "HEAD")
+    parents = _git_output(repository_root, "rev-list", "--parents", "-n", "1", "HEAD").split()
+    if not parents or parents[0] != head or len(parents) != 2:
+        raise Phase0BlockedError("release commit must have exactly one parent")
+    parent = parents[1]
+    if parent != value["formal_code_commit"]:
+        raise Phase0BlockedError("release commit parent does not match formal_code_commit")
+
+    tag_type = _git_output(repository_root, "cat-file", "-t", value["annotated_tag"])
+    if tag_type != "tag":
+        raise Phase0BlockedError("formal release tag must be an annotated tag")
+    tag_commit = _git_output(
+        repository_root, "rev-parse", f"{value['annotated_tag']}^{{}}"
+    )
+    if tag_commit != head:
+        raise Phase0BlockedError("annotated tag does not resolve to the release commit")
+
+    changed_paths = tuple(
+        line.replace("\\", "/")
+        for line in _git_output(
+            repository_root,
+            "diff-tree",
+            "--no-commit-id",
+            "--name-only",
+            "--no-renames",
+            "-r",
+            parent,
+            head,
+        ).splitlines()
+        if line
+    )
+    if changed_paths != _RELEASE_COMMIT_ALLOWED_PATHS:
+        raise Phase0BlockedError("release commit changed paths outside the approved whitelist")
+    if _git_output(repository_root, "status", "--porcelain", "--untracked-files=no"):
+        raise Phase0BlockedError("tracked release worktree is not clean")
+    return {
+        "release_id": value["release_id"],
+        "annotated_tag": value["annotated_tag"],
+        "formal_code_commit": parent,
+        "release_commit": head,
+        "release_commit_parent_count": 1,
+        "release_commit_allowed_paths": list(changed_paths),
+    }
+
+
 def _validate_release_record(
-    value: dict[str, Any], config: ExperimentConfig, batch_contract: BatchContract
-) -> None:
+    value: dict[str, Any],
+    config: ExperimentConfig,
+    batch_contract: BatchContract,
+    bundle: ManifestBundle,
+    *,
+    repository_root: Path,
+    release_path: Path,
+) -> dict[str, Any]:
     expected = {
         "schema",
         "release_id",
-        "supersedes_config_hash",
+        "supersedes_release_id",
         "phase0_release_tag",
+        "release_id_role",
+        "annotated_tag",
+        "formal_code_commit",
+        "release_commit_allowed_paths",
         "config_hash",
         "normalized_config_sha256",
         "run_id",
+        "run_id_role",
+        "manifest_relpath",
+        "manifest_hash_algorithm",
+        "source_manifest_hash_rule",
+        "effective_split_hash_rule",
+        "source_manifest_sha256",
+        "effective_split_hashes",
         "batch_size",
         "drop_last",
         "expected_train_rows",
@@ -160,17 +267,19 @@ def _validate_release_record(
     }
     if set(value) != expected:
         raise Phase0BlockedError(
-            "release record fields do not match phase1-training-release-v1"
+            "release record fields do not match phase1-training-release-v2"
         )
-    if value["schema"] != "phase1-training-release-v1":
+    if value["schema"] != "phase1-training-release-v2":
         raise Phase0BlockedError(
-            "release record schema is not phase1-training-release-v1"
+            "release record schema is not phase1-training-release-v2"
         )
-    if not isinstance(value["release_id"], str) or not value["release_id"]:
-        raise Phase0BlockedError("training release_id must be a nonempty string")
+    if value["release_id"] != _APPROVED_RELEASE_ID:
+        raise Phase0BlockedError("release_id does not match phase1-training-b32-v3")
+    if value["supersedes_release_id"] != "phase1-training-b32-v2":
+        raise Phase0BlockedError("release does not supersede the approved v2 release")
     if value["phase0_release_tag"] != "phase0-closed-v1":
         raise Phase0BlockedError("training release must bind phase0-closed-v1")
-    for key in ("supersedes_config_hash", "config_hash", "normalized_config_sha256"):
+    for key in ("config_hash", "normalized_config_sha256", "source_manifest_sha256"):
         if not _is_sha256(value[key]):
             raise Phase0BlockedError(f"release {key} is not a canonical SHA-256")
     if value["config_hash"] != config.sha256 or value["normalized_config_sha256"] != (
@@ -179,6 +288,30 @@ def _validate_release_record(
         raise Phase0BlockedError("training release config hash does not match normalized config")
     if value["run_id"] != config.execution["run_id"]:
         raise Phase0BlockedError("training release run_id does not match configuration")
+    if value["release_id_role"] != "release-governance-identity" or value[
+        "run_id_role"
+    ] != "unchanged-training-config-identity":
+        raise Phase0BlockedError("release and run identity roles are not explicit")
+    if value["manifest_relpath"] != config.data["manifest_relpath"]:
+        raise Phase0BlockedError("release manifest path does not match configuration")
+    if value["manifest_hash_algorithm"] != "sha256":
+        raise Phase0BlockedError("release manifest hash algorithm is not sha256")
+    if value["source_manifest_hash_rule"] != "raw-file-bytes-v1":
+        raise Phase0BlockedError("release source manifest hash rule is invalid")
+    if value["effective_split_hash_rule"] != "cg/cam16-eval-manifest/v1":
+        raise Phase0BlockedError("release effective split hash rule is invalid")
+    effective = value["effective_split_hashes"]
+    if not isinstance(effective, dict) or set(effective) != {"train", "val"}:
+        raise Phase0BlockedError("release must bind only train and val effective split hashes")
+    if any(not _is_sha256(effective[split]) for split in ("train", "val")):
+        raise Phase0BlockedError("release effective split hash is not a canonical SHA-256")
+    if value["source_manifest_sha256"] != bundle.source_manifest_sha256:
+        raise Phase0BlockedError("source manifest identity does not match the approved release")
+    if any(
+        effective[split] != bundle.effective_split_hashes[split]
+        for split in ("train", "val")
+    ):
+        raise Phase0BlockedError("effective split identity does not match the approved release")
     for key in (
         "batch_size",
         "expected_train_rows",
@@ -222,6 +355,9 @@ def _validate_release_record(
         raise Phase0BlockedError("patient-level isolation must remain not_evaluated")
     if value["patient_level_claim_allowed"] is not PATIENT_LEVEL_CLAIM_ALLOWED:
         raise Phase0BlockedError("patient-level claim is not allowed")
+    return _validate_git_release_identity(
+        value, repository_root=repository_root, release_path=release_path
+    )
 
 
 def _runtime_path(base: Path, relative: str) -> Path:
@@ -236,22 +372,15 @@ def _runtime_path(base: Path, relative: str) -> Path:
     return target
 
 
-def _git_revision() -> str:
-    result = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
-        cwd=_REPOSITORY_ROOT,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    return result.stdout.strip()
+def _git_revision(repository_root: Path = _REPOSITORY_ROOT) -> str:
+    return _git_output(repository_root, "rev-parse", "HEAD")
 
 
-def _source_code_identity() -> str:
+def _source_code_identity(repository_root: Path = _REPOSITORY_ROOT) -> str:
     digest = hashlib.sha256()
-    for root in (_REPOSITORY_ROOT / "src",):
+    for root in (repository_root / "src",):
         for path in sorted(root.rglob("*.py"), key=lambda item: item.as_posix()):
-            relative = path.relative_to(_REPOSITORY_ROOT).as_posix().encode("utf-8")
+            relative = path.relative_to(repository_root).as_posix().encode("utf-8")
             data = path.read_bytes()
             digest.update(len(relative).to_bytes(8, "big") + relative)
             digest.update(len(data).to_bytes(8, "big") + data)
@@ -265,6 +394,7 @@ def _evaluation_context(
     model: FixedHEClassifier,
     *,
     seed: int,
+    repository_root: Path = _REPOSITORY_ROOT,
 ) -> EvaluationContext:
     return EvaluationContext(
         split=dataset.split,
@@ -279,7 +409,7 @@ def _evaluation_context(
             for row in dataset.rows
         ),
         config_hash=config.sha256,
-        code_identity=_source_code_identity(),
+        code_identity=_source_code_identity(repository_root),
         source_manifest_sha256=bundle.source_manifest_sha256,
         effective_manifest_sha256=bundle.effective_split_hashes[dataset.split],
         fixed_frontend_identity=model.frontend.fixed_state_identity(),
@@ -615,15 +745,29 @@ def _perform_preflight(
 ) -> tuple[dict[str, Any], ManifestBundle]:
     if config.execution_kind != "formal_train":
         raise ValueError("preflight requires execution.kind=formal_train")
+    repository_root = _repository_root_for_config(config)
     passed = ["configuration"]
     not_applicable = ["patient_level_isolation"]
     blocked: list[str] = []
     manifest = data_root / Path(*PurePosixPath(str(config.data["manifest_relpath"])).parts)
-    bundle = validate_manifest(data_root, manifest, check_files=True, reconcile_disk=True)
+    bundle = validate_manifest(
+        data_root,
+        manifest,
+        check_files=True,
+        reconcile_disk=True,
+        effective_hash_splits=("train", "val"),
+    )
     passed.extend(["manifest_and_disk", "slide_id_isolation"])
     release = _read_json_strict(release_path)
     batch_contract = _batch_contract(config, bundle)
-    _validate_release_record(release, config, batch_contract)
+    release_identity = _validate_release_record(
+        release,
+        config,
+        batch_contract,
+        bundle,
+        repository_root=repository_root,
+        release_path=release_path,
+    )
     mapping_evidence: dict[str, Any] = {
         "status": PATIENT_LEVEL_ISOLATION,
         "reason": "patient identity is outside the CAM16 Phase 1 claim scope",
@@ -662,16 +806,29 @@ def _perform_preflight(
     else:
         blocked.append("phase1_training_release")
     report = {
-        "schema": "phase1-training-preflight-report-v1",
+        "schema": "phase1-training-preflight-report-v2",
+        "created_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "status": "PASS" if not blocked else "FAIL",
         "config_hash": config.sha256,
         "normalized_config_sha256": config.sha256,
         "release_id": release["release_id"],
         "batch_contract": batch_contract,
-        "code_revision": _git_revision(),
-        "code_identity": _source_code_identity(),
+        "code_revision": _git_revision(repository_root),
+        "code_identity": _source_code_identity(repository_root),
+        "release_identity": release_identity,
         "source_manifest_sha256": bundle.source_manifest_sha256,
         "effective_split_hashes": bundle.effective_split_hashes,
+        "manifest_identity": {
+            "manifest_relpath": release["manifest_relpath"],
+            "manifest_hash_algorithm": release["manifest_hash_algorithm"],
+            "source_manifest_hash_rule": release["source_manifest_hash_rule"],
+            "effective_split_hash_rule": release["effective_split_hash_rule"],
+            "source_manifest_sha256": bundle.source_manifest_sha256,
+            "effective_split_hashes": {
+                "train": bundle.effective_split_hashes["train"],
+                "val": bundle.effective_split_hashes["val"],
+            },
+        },
         "split_counts": bundle.split_counts,
         "label_counts": bundle.label_counts,
         "disk_inventory": bundle.disk_inventory,
@@ -706,8 +863,93 @@ def run_preflight(
         data_root=Path(data_root).resolve(),
         release_path=Path(release_path).resolve(),
     )
+    report["report_identity"] = _preflight_report_identity(report)
     _write_json_exclusive(Path(output_path), report)
     return report
+
+
+def _preflight_report_identity(report: dict[str, Any]) -> str:
+    material = {key: value for key, value in report.items() if key != "report_identity"}
+    encoded = json.dumps(
+        material,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+    return raw_sha256(encoded)
+
+
+def _validate_preflight_report_for_training(
+    config: ExperimentConfig,
+    *,
+    data_root: Path,
+    release_path: Path,
+    preflight_report_path: Path,
+) -> tuple[dict[str, Any], ManifestBundle, dict[str, Any], Path]:
+    report = _read_json_strict(preflight_report_path)
+    if report.get("report_identity") != _preflight_report_identity(report):
+        raise Phase0BlockedError("preflight report identity is missing or mismatched")
+    created_at = report.get("created_at")
+    if not isinstance(created_at, str):
+        raise Phase0BlockedError("preflight report created_at is missing")
+    try:
+        datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+    except ValueError as error:
+        raise Phase0BlockedError("preflight report created_at is invalid") from error
+
+    repository_root = _repository_root_for_config(config)
+    manifest = data_root / Path(*PurePosixPath(str(config.data["manifest_relpath"])).parts)
+    bundle = validate_manifest(
+        data_root,
+        manifest,
+        check_files=True,
+        reconcile_disk=True,
+        effective_hash_splits=("train", "val"),
+    )
+    release = _read_json_strict(release_path)
+    batch_contract = _batch_contract(config, bundle)
+    release_identity = _validate_release_record(
+        release,
+        config,
+        batch_contract,
+        bundle,
+        repository_root=repository_root,
+        release_path=release_path,
+    )
+    expected_manifest_identity = {
+        "manifest_relpath": release["manifest_relpath"],
+        "manifest_hash_algorithm": release["manifest_hash_algorithm"],
+        "source_manifest_hash_rule": release["source_manifest_hash_rule"],
+        "effective_split_hash_rule": release["effective_split_hash_rule"],
+        "source_manifest_sha256": bundle.source_manifest_sha256,
+        "effective_split_hashes": dict(bundle.effective_split_hashes),
+    }
+    checks = {
+        "schema": report.get("schema") == "phase1-training-preflight-report-v2",
+        "status": report.get("status") == "PASS",
+        "blocking_gates": report.get("blocking_gates") == [],
+        "training_started": report.get("training_started") is False,
+        "test_split_accessed": report.get("test_split_accessed") is False,
+        "config_hash": report.get("config_hash") == config.sha256,
+        "normalized_config_sha256": report.get("normalized_config_sha256") == config.sha256,
+        "release_id": report.get("release_id") == release["release_id"],
+        "release_identity": report.get("release_identity") == release_identity,
+        "code_revision": report.get("code_revision") == _git_revision(repository_root),
+        "code_identity": report.get("code_identity") == _source_code_identity(repository_root),
+        "source_manifest_sha256": report.get("source_manifest_sha256")
+        == bundle.source_manifest_sha256,
+        "effective_split_hashes": report.get("effective_split_hashes")
+        == bundle.effective_split_hashes,
+        "manifest_identity": report.get("manifest_identity") == expected_manifest_identity,
+        "batch_contract": report.get("batch_contract") == batch_contract,
+    }
+    failed = [name for name, passed in checks.items() if not passed]
+    if failed:
+        raise Phase0BlockedError(
+            "preflight report does not match current formal identities: " + ", ".join(failed)
+        )
+    return report, bundle, release_identity, repository_root
 
 
 def _formal_output_base(config: ExperimentConfig) -> Path:
@@ -780,6 +1022,9 @@ def _run_formal_seed(
     *,
     seed: int,
     resume: bool,
+    repository_root: Path,
+    release_identity: dict[str, Any],
+    preflight_report_identity: str,
 ) -> dict[str, Any]:
     configure_determinism(seed)
     seed_dir = output_base / f"seed-{seed}"
@@ -788,9 +1033,11 @@ def _run_formal_seed(
     optimizer = _optimizer(config, model)
     fixed_identity = model.frontend.fixed_state_identity()
     base_metadata = {
-        "code_revision": _git_revision(),
-        "code_identity": _source_code_identity(),
+        "code_revision": _git_revision(repository_root),
+        "code_identity": _source_code_identity(repository_root),
         "config_hash": config.sha256,
+        "release_identity": release_identity,
+        "preflight_report_identity": preflight_report_identity,
         "source_manifest_sha256": bundle.source_manifest_sha256,
         "effective_split_hashes": bundle.effective_split_hashes,
         "fixed_frontend_identity": fixed_identity,
@@ -850,7 +1097,14 @@ def _run_formal_seed(
         )
         evaluation = evaluate_predictions(
             predictions,
-            context=_evaluation_context(config, bundle, val_dataset, model, seed=seed),
+            context=_evaluation_context(
+                config,
+                bundle,
+                val_dataset,
+                model,
+                seed=seed,
+                repository_root=repository_root,
+            ),
             fit_thresholds=True,
             ci_seed=seed,
         )
@@ -901,21 +1155,18 @@ def run_formal_training(
     *,
     data_root: Path | str,
     release_path: Path | str,
+    preflight_report_path: Path | str,
     resume: bool = False,
 ) -> dict[str, Any]:
     """Run the frozen train/validation protocol only after every preflight gate passes."""
 
     config = load_experiment_config(config_path)
-    report, bundle = _perform_preflight(
+    report, bundle, release_identity, repository_root = _validate_preflight_report_for_training(
         config,
         data_root=Path(data_root).resolve(),
         release_path=Path(release_path).resolve(),
+        preflight_report_path=Path(preflight_report_path).resolve(),
     )
-    if report["status"] != "PASS":
-        raise Phase0BlockedError(
-            "formal training preflight failed before training: "
-            + ", ".join(report["blocking_gates"])
-        )
     output_base = _formal_output_base(config)
     if output_base.exists() and not resume:
         raise FileExistsError(output_base)
@@ -945,6 +1196,9 @@ def run_formal_training(
                 output_base,
                 seed=seed,
                 resume=resume,
+                repository_root=repository_root,
+                release_identity=release_identity,
+                preflight_report_identity=str(report["report_identity"]),
             )
         except (OSError, RuntimeError, ValueError) as error:
             result = {
@@ -967,8 +1221,12 @@ def run_formal_training(
     final_report = {
         "schema": "formal-training-summary-v1",
         "config_hash": config.sha256,
-        "code_identity": _source_code_identity(),
+        "code_revision": _git_revision(repository_root),
+        "code_identity": _source_code_identity(repository_root),
+        "release_identity": release_identity,
+        "preflight_report_identity": report["report_identity"],
         "source_manifest_sha256": bundle.source_manifest_sha256,
+        "effective_split_hashes": bundle.effective_split_hashes,
         **isolation_claim_fields(),
         "runs": run_results,
         "multi_seed_validation_slide_auroc": aggregation,

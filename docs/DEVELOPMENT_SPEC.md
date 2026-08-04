@@ -40,11 +40,21 @@ closure authorization recorded in `docs/DECISIONS.md`, work in this phase may:
 Phase 0 did **not** itself authorize formal model training, comparative experiments,
 test-set evaluation, or transfer evaluation. The synthetic dry run remains
 explicitly non-formal. The current
-`configs/phase1_training_release_b32_v2.json` binds the revised frozen Phase 1
-CAM16 train/validation baseline to its normalized configuration hash after
-preflight passes; the historical `configs/phase0_release.json` and
+`configs/phase1_training_release_b32_v3.json` binds the revised frozen Phase 1
+CAM16 train/validation baseline to its normalized configuration, approved source
+manifest, train/validation effective split identities, formal code commit, release
+commit, and annotated tag. One standalone preflight writes an identity-bound report;
+formal training consumes that report and recomputes current code, release, config,
+and train/validation data identities without repeating the full preflight. The
+historical `configs/phase0_release.json` and
 `phase0-closed-v1` tag remain unchanged. Final test and transfer evaluation remain
 prohibited.
+
+The unchanged Run ID `phase1-cam16-baseline-b32-v2` is the training-configuration
+identity. `phase1-training-b32-v3` is a distinct release-governance identity and
+does not change the optimizer, data split, model, seed, or evaluation contract.
+Formal preflight computes no test effective-split identity, test access remains
+unauthorized, and patient-level isolation remains `not_evaluated`.
 
 ## 3. Locked project scope
 

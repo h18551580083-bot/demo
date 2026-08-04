@@ -28,6 +28,7 @@ def _parser() -> argparse.ArgumentParser:
     train.add_argument("--config", type=Path, required=True)
     train.add_argument("--data-root", type=Path, required=True)
     train.add_argument("--release", type=Path, required=True)
+    train.add_argument("--preflight-report", type=Path, required=True)
     train.add_argument("--resume", action="store_true")
     return parser
 
@@ -53,6 +54,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.config,
                 data_root=args.data_root,
                 release_path=args.release,
+                preflight_report_path=args.preflight_report,
                 resume=args.resume,
             )
             print(json.dumps({"status": "PASS", "runs": report["runs"]}))

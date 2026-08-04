@@ -162,9 +162,14 @@ def validate_manifest(
     *,
     check_files: bool,
     reconcile_disk: bool,
+    effective_hash_splits: tuple[str, ...] = _SPLITS,
 ) -> ManifestBundle:
     """Validate an immutable existing-patch manifest without reading patch pixels."""
 
+    if not effective_hash_splits or len(set(effective_hash_splits)) != len(
+        effective_hash_splits
+    ) or any(split not in _SPLITS for split in effective_hash_splits):
+        raise DataContractError("effective hash splits must be unique approved splits")
     package_root = Path(root).resolve()
     manifest_path = Path(manifest).resolve()
     if not package_root.is_dir():
@@ -259,7 +264,9 @@ def validate_manifest(
         split_counts={split: split_counts_counter[split] for split in _SPLITS},
         label_counts={name: label_counts_counter[name] for name in _CLASS_MAP},
         source_manifest_sha256="sha256:" + hashlib.sha256(raw).hexdigest(),
-        effective_split_hashes={split: _effective_hash(frozen_rows, split) for split in _SPLITS},
+        effective_split_hashes={
+            split: _effective_hash(frozen_rows, split) for split in effective_hash_splits
+        },
         isolation=IsolationReport(
             identity_level="slide_id",
             identity_column="slide_id",

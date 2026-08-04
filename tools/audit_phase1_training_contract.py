@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -12,7 +13,32 @@ from cg_pipeline.data import build_dataloader, expected_batch_count
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 CONFIG_PATH = REPOSITORY / "configs" / "phase1_baseline.toml"
-RELEASE_PATH = REPOSITORY / "configs" / "phase1_training_release_b32_v2.json"
+RELEASE_PATH = REPOSITORY / "configs" / "phase1_training_release_b32_v3.json"
+RELEASE_ID = "phase1-training-b32-v3"
+SOURCE_MANIFEST_SHA256 = (
+    "sha256:23c681a3a338e4df96c2e3443b39349c4758e08009eb47d46928d148f62045ab"
+)
+TRAIN_EFFECTIVE_SHA256 = (
+    "sha256:8c54e7f8b1674e4e94c9a46e0d9abf01e4c0c8a88605e7831b2701c0ddbe58c5"
+)
+VAL_EFFECTIVE_SHA256 = (
+    "sha256:1a6fd51cb6d7ae5da920f06974a871deef2f21147f0df9c4d2c902d30ed3decc"
+)
+RELEASE_COMMIT_ALLOWED_PATHS = [
+    "configs/phase1_training_release_b32_v3.json",
+    "docs/DECISIONS.md",
+    "docs/PHASE1_TRAINING_RUNBOOK.md",
+]
+
+
+def _git(*args: str) -> str:
+    return subprocess.run(
+        ["git", *args],
+        cwd=REPOSITORY,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
 
 
 class _CountingDataset:
@@ -57,7 +83,32 @@ def audit() -> dict[str, Any]:
     train_integrity = _loader_integrity(79_570, "train", batch_size)
     validation_integrity = _loader_integrity(18_171, "validation", batch_size)
     checks = {
+        "release_schema_v2": release["schema"] == "phase1-training-release-v2",
+        "release_id": release["release_id"] == RELEASE_ID,
+        "annotated_tag": release["annotated_tag"] == RELEASE_ID
+        and _git("cat-file", "-t", RELEASE_ID) == "tag"
+        and _git("rev-parse", f"{RELEASE_ID}^{{}}") == _git("rev-parse", "HEAD"),
+        "single_parent_code_commit": len(
+            _git("rev-list", "--parents", "-n", "1", "HEAD").split()
+        )
+        == 2
+        and _git("rev-parse", "HEAD^") == release["formal_code_commit"],
+        "release_commit_whitelist": release["release_commit_allowed_paths"]
+        == RELEASE_COMMIT_ALLOWED_PATHS
+        and _git(
+            "diff-tree",
+            "--no-commit-id",
+            "--name-only",
+            "--no-renames",
+            "-r",
+            "HEAD^",
+            "HEAD",
+        ).splitlines()
+        == RELEASE_COMMIT_ALLOWED_PATHS,
         "formal_run_id": config.execution["run_id"] == "phase1-cam16-baseline-b32-v2",
+        "run_release_roles_distinct": release["run_id_role"]
+        == "unchanged-training-config-identity"
+        and release["release_id_role"] == "release-governance-identity",
         "batch_size_32": batch_size == 32 and release["batch_size"] == 32,
         "drop_last_false": train_integrity["drop_last"] is False
         and validation_integrity["drop_last"] is False
@@ -85,6 +136,16 @@ def audit() -> dict[str, Any]:
         == 568,
         "test_access_disabled": config.execution["allow_test"] is False
         and release["test_access_authorized"] is False,
+        "source_manifest_identity": release["manifest_hash_algorithm"] == "sha256"
+        and release["source_manifest_hash_rule"] == "raw-file-bytes-v1"
+        and release["source_manifest_sha256"] == SOURCE_MANIFEST_SHA256,
+        "effective_train_val_identities": release["effective_split_hash_rule"]
+        == "cg/cam16-eval-manifest/v1"
+        and release["effective_split_hashes"]
+        == {"train": TRAIN_EFFECTIVE_SHA256, "val": VAL_EFFECTIVE_SHA256}
+        and "test" not in release["effective_split_hashes"],
+        "patient_claim_forbidden": release["patient_level_isolation"] == "not_evaluated"
+        and release["patient_level_claim_allowed"] is False,
     }
     return {
         "schema": "phase1-training-contract-audit-v1",

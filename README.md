@@ -62,8 +62,14 @@ python -m cg_pipeline dry-run `
 python -m cg_pipeline preflight `
   --config configs\phase1_baseline.toml `
   --data-root cam16_patch `
-  --release configs\phase1_training_release_b32_v2.json `
-  --output artifacts\phase1_b32_preflight.json
+  --release configs\phase1_training_release_b32_v3.json `
+  --output artifacts\preflight\phase1-training-b32-v3\preflight.json
+
+python -m cg_pipeline train `
+  --config configs\phase1_baseline.toml `
+  --data-root cam16_patch `
+  --release configs\phase1_training_release_b32_v3.json `
+  --preflight-report artifacts\preflight\phase1-training-b32-v3\preflight.json
 ```
 
 The dry run is synthetic and cannot support a performance claim. The formal
@@ -77,7 +83,9 @@ preflight inputs.
 
 ## Formal training entry
 
-Phase 0 is closed. The formal entry still runs preflight before the first batch:
+Phase 0 is closed. Formal entry consumes one independently generated preflight
+report and rechecks its current code, release, config, and train/validation data
+identities before the first batch:
 
 The active formal identity is `phase1-cam16-baseline-b32-v2`, with batch size 32,
 2,487 train updates per complete epoch, and at most 49,740 updates over 20 epochs.
@@ -89,7 +97,8 @@ $env:PYTHONPATH = 'E:\cg\src'
 python -m cg_pipeline train `
   --config configs\phase1_baseline.toml `
   --data-root cam16_patch `
-  --release configs\phase1_training_release_b32_v2.json
+  --release configs\phase1_training_release_b32_v3.json `
+  --preflight-report artifacts\preflight\phase1-training-b32-v3\preflight.json
 ```
 
 Training never loads the test split. Test evaluation requires a later, separate
