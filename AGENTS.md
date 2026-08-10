@@ -40,6 +40,17 @@
 - Run the project smoke test before finishing.
 - Report commands, results, failures, and skipped tests.
 
+## Training modes
+
+- The only real CAM16 training modes are `exploratory_train` and `formal_train`.
+- Exploratory training may use a dirty/untracked tree and controlled engineering
+  overrides, but must use only train/validation and must mark every artifact
+  `formal_experiment=false` and `experiment_mode=exploratory_train`.
+- Exploratory results are never formal evidence and must not be promoted or renamed
+  as formal results.
+- Formal training remains release/tag/hash/preflight gated, uses the frozen seeds
+  and full formal epoch/checkpoint/provenance contract, and never overwrites output.
+
 ## Completion response
 
 Report:

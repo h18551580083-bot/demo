@@ -21,6 +21,24 @@ This is the preregistered Phase 1 starting baseline. It is intentionally simple
 and reproducible; it is not claimed to be optimal or validated by CAM16 training.
 Changing a scientific field creates a new contract and requires a new decision.
 
+## Two-mode training workflow
+
+`exploratory_train` uses real CAM16 train/validation data for profiling, engineering
+performance work, single-epoch or `max_steps` checks, and other non-formal
+experiments. It requires only the shared manifest readability, legal train/validation
+splits, and `group_id`/`slide_id` cross-split isolation checks. It permits a dirty or
+untracked source tree, one seed, and CLI overrides for run/output identity, batch
+size, worker count, device, epoch count, and step count. Every exploratory artifact records
+`formal_experiment = false` and `experiment_mode = exploratory_train`; it cannot be
+promoted or renamed as formal evidence.
+
+`formal_train` retains the frozen contract below. It requires the approved annotated
+release, clean tree, exact release/config/source/manifest identities, standalone
+formal preflight, fixed seeds, complete epochs, validation checkpoint selection,
+immutable outputs, and formal provenance. The exploratory path does not relax any
+formal gate. Test access remains prohibited for both modes pending separate
+final-once authorization.
+
 ## Frozen optimization contract
 
 | Item | Frozen value |
@@ -85,7 +103,7 @@ and canonical fixed-front-end identities. Test rows are not loaded by training o
 validation.
 
 The entry requires one standalone preflight report created from the published v3
-release. `train --preflight-report` verifies the exact report schema and canonical
+release. `formal-train --preflight-report` verifies the exact report schema and canonical
 hash, then recomputes current
 HEAD/tag/release/config/source-manifest and train/validation effective identities;
 it also rechecks the frozen governance fields, while `created_at` remains audit-only
@@ -98,13 +116,13 @@ prerequisite. Every preflight and training report records
 
 ```bash
 export PYTHONPATH="$PWD/src"
-python -m cg_pipeline preflight \
+python -m cg_pipeline formal-preflight \
   --config configs/phase1_baseline.toml \
   --data-root "$DATA_ROOT" \
   --release configs/phase1_training_release_b32_v3.json \
   --output artifacts/preflight/phase1-training-b32-v3/preflight.json
 
-python -m cg_pipeline train \
+python -m cg_pipeline formal-train \
   --config configs/phase1_baseline.toml \
   --data-root "$DATA_ROOT" \
   --release configs/phase1_training_release_b32_v3.json \

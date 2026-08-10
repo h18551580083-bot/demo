@@ -1,21 +1,16 @@
-"""Public preflight, synthetic dry-run, and guarded formal-training entry points."""
+"""Public exploratory training and guarded formal-training entry points."""
 
 from __future__ import annotations
 
-import csv
 import hashlib
 import json
-import platform
 import subprocess
-import sys
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, TypedDict, cast
 
-import numpy as np
 import torch
-from PIL import Image
 
 from .claims import (
     PATIENT_LEVEL_CLAIM_ALLOWED,
@@ -25,7 +20,6 @@ from .claims import (
 )
 from .config import ExperimentConfig, load_experiment_config
 from .data import (
-    DataContractError,
     ManifestBundle,
     PatchDataset,
     build_dataloader,
@@ -515,71 +509,6 @@ def _optimizer(config: ExperimentConfig, model: FixedHEClassifier) -> torch.opti
     )
 
 
-def _synthetic_pattern(kind: int) -> np.ndarray:
-    y, x = np.indices((256, 256), dtype=np.uint16)
-    if kind == 0:
-        channels = (x % 256, y % 256, (x + y) % 256)
-    elif kind == 1:
-        checker = ((x // 8 + y // 8) % 2) * 190 + 32
-        channels = (checker, (checker + 31) % 256, (255 - checker) % 256)
-    elif kind == 2:
-        channels = ((255 - x) % 256, (2 * y) % 256, (x // 2 + y) % 256)
-    else:
-        stripe = ((x // 5) % 2) * 210 + 20
-        channels = ((stripe + y) % 256, stripe, (255 - stripe) % 256)
-    return np.ascontiguousarray(np.stack(channels, axis=-1).astype(np.uint8))
-
-
-def _create_synthetic_package(root: Path) -> Path:
-    rows = [
-        ("dry-train-normal", "train", "normal", 0, "dry-slide-train-normal", 0),
-        ("dry-train-tumor", "train", "tumor", 1, "dry-slide-train-tumor", 1),
-        ("dry-val-normal", "val", "normal", 0, "dry-slide-val-normal", 0),
-        ("dry-val-tumor", "val", "tumor", 1, "dry-slide-val-tumor", 1),
-    ]
-    manifest_rows: list[dict[str, str]] = []
-    for index, (patch_id, split, label_name, label, slide_id, slide_label) in enumerate(rows):
-        relative = f"patches/{split}/{label_name}/{patch_id}.png"
-        path = root / Path(*PurePosixPath(relative).parts)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        Image.fromarray(_synthetic_pattern(index), mode="RGB").save(path, format="PNG")
-        manifest_rows.append(
-            {
-                "patch_id": patch_id,
-                "patch_path": relative,
-                "split": split,
-                "slide_id": slide_id,
-                "label": str(label),
-                "label_name": label_name,
-                "patch_label": label_name,
-                "slide_label": "tumor" if slide_label else "normal",
-            }
-        )
-    manifest = root / "metadata" / "training_manifest.csv"
-    manifest.parent.mkdir(parents=True, exist_ok=True)
-    fieldnames = [
-        "patch_id",
-        "patch_path",
-        "split",
-        "slide_id",
-        "label",
-        "label_name",
-        "patch_label",
-        "slide_label",
-    ]
-    with manifest.open("x", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(manifest_rows)
-    duplicate = root / "metadata" / "negative_duplicate_patch_id.csv"
-    with duplicate.open("x", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerow(manifest_rows[0])
-        writer.writerow(manifest_rows[0])
-    return manifest
-
-
 def _prediction_ledger(
     model: FixedHEClassifier,
     dataset: PatchDataset,
@@ -617,209 +546,28 @@ def _prediction_ledger(
     return tuple(predictions)
 
 
-def _core_dry_execution(
+def _validate_training_data(
     config: ExperimentConfig,
-    bundle: ManifestBundle,
-    device: torch.device,
-    checkpoint_path: Path | None,
-) -> dict[str, Any]:
-    seed = int(config.training["seeds"][0])
-    seed_audit = configure_determinism(seed)
-    model = FixedHEClassifier(frontend_backend=str(config.model["frontend_backend"])).to(device)
-    optimizer = _optimizer(config, model)
-    train_dataset = PatchDataset(bundle, "train")
-    train_loader = build_dataloader(
-        train_dataset,
-        batch_size=int(config.training["batch_size"]),
-        seed=seed,
-        epoch=0,
-        num_workers=int(config.training["num_workers"]),
-    )
-    batch = next(iter(train_loader))
-    step = train_one_step(
-        model,
-        optimizer,
-        batch["rgb"].to(device),
-        batch["target"].to(device),
-    )
-    fixed_identity = model.frontend.fixed_state_identity()
-    metadata = {
-        "code_revision": _git_revision(),
-        "code_identity": _source_code_identity(),
-        "config_hash": config.sha256,
-        "checkpoint_identity": model_state_identity(model),
-        "optimizer_state_identity": optimizer_state_identity(optimizer),
-        "epoch": 0,
-        "source_manifest_sha256": bundle.source_manifest_sha256,
-        "effective_split_hashes": bundle.effective_split_hashes,
-        "fixed_frontend_identity": fixed_identity,
-        "seed": seed,
-    }
-    checkpoint_restore = {"passed": False}
-    if checkpoint_path is not None:
-        state_before_save = model_state_identity(model)
-        save_checkpoint(checkpoint_path, model, optimizer, metadata)
-        restored = FixedHEClassifier(frontend_backend=str(config.model["frontend_backend"])).to(
-            device
-        )
-        restored_optimizer = _optimizer(config, restored)
-        restored_metadata = load_checkpoint(
-            checkpoint_path,
-            restored,
-            restored_optimizer,
-            expected_metadata=metadata,
-        )
-        if model_state_identity(restored) != state_before_save:
-            raise RuntimeError("checkpoint restore changed model state identity")
-        model = restored
-        optimizer = restored_optimizer
-        checkpoint_restore = {"passed": True, "metadata": restored_metadata}
-    val_dataset = PatchDataset(bundle, "val")
-    val_predictions = _prediction_ledger(
-        model,
-        val_dataset,
-        config,
-        device,
-        seed=seed,
-        epoch=0,
-    )
-    evaluation = evaluate_predictions(
-        val_predictions,
-        context=_evaluation_context(config, bundle, val_dataset, model, seed=seed),
-        fit_thresholds=True,
-        ci_seed=seed,
-    )
-    step_payload = asdict(step)
-    step_payload["changed_backend_parameters"] = list(step.changed_backend_parameters)
-    prediction_bits = [
-        torch.tensor(row.logit, dtype=torch.float32).view(torch.int32).item()
-        for row in sorted(val_predictions, key=lambda item: item.patch_id)
-    ]
-    return {
-        "seed_audit": seed_audit,
-        "training_step": step_payload,
-        "fixed_identity": fixed_identity,
-        "fixed_frontend_unchanged": step.fixed_frontend_unchanged,
-        "model_state_identity": model_state_identity(model),
-        "prediction_float32_bits": prediction_bits,
-        "evaluation": evaluation,
-        "checkpoint_restore": checkpoint_restore,
-        "optimizer_ownership": audit_optimizer_ownership(model, optimizer),
-    }
-
-
-def run_dry_run(
-    config_path: Path | str,
     *,
-    workspace_root: Path | str,
-) -> dict[str, Any]:
-    config = load_experiment_config(config_path)
-    if config.execution_kind != "dry_run":
-        raise ValueError("dry-run entry requires execution.kind=dry_run")
-    base = Path(workspace_root).resolve()
-    output = _runtime_path(base, str(config.execution["output_root"]))
-    output.mkdir(parents=True, exist_ok=False)
-    package_root = output / "synthetic_package"
-    manifest = _create_synthetic_package(package_root)
-    bundle = validate_manifest(package_root, manifest, check_files=True, reconcile_disk=True)
-    device = torch.device(str(config.execution["device"]))
-    if device.type == "cuda" and not torch.cuda.is_available():
-        raise RuntimeError("configured dry-run CUDA device is unavailable")
-    checkpoint = output / "checkpoint" / "epoch-0000.pt"
-    first = _core_dry_execution(config, bundle, device, checkpoint)
-    second = _core_dry_execution(config, bundle, device, None)
-    exact_match = all(
-        first[key] == second[key]
-        for key in ("model_state_identity", "prediction_float32_bits", "evaluation")
+    data_root: Path,
+    formal: bool,
+) -> ManifestBundle:
+    """Apply the shared train/validation manifest and split-isolation safety checks."""
+
+    manifest = data_root / Path(*PurePosixPath(str(config.data["manifest_relpath"])).parts)
+    bundle = validate_manifest(
+        data_root,
+        manifest,
+        check_files=True,
+        reconcile_disk=formal,
+        effective_hash_splits=("train", "val"),
+        file_check_splits=("train", "val") if not formal else ("train", "val", "test"),
     )
-    if not exact_match:
-        raise RuntimeError("repeat dry-run executions are not exactly reproducible")
-    negative_path = package_root / "metadata" / "negative_duplicate_patch_id.csv"
-    negative_detected = False
-    try:
-        validate_manifest(
-            package_root,
-            negative_path,
-            check_files=False,
-            reconcile_disk=False,
-        )
-    except DataContractError as error:
-        negative_detected = "duplicate patch_id" in str(error)
-    if not negative_detected:
-        raise RuntimeError("duplicate-patch negative control was not detected")
-    spectral_coverage = validate_spectral_coverage(generate_morlet_bundle())
-    if spectral_coverage["status"] != "PASS":
-        raise RuntimeError("Morlet spectral coverage gate failed")
-    steps = {
-        "config_load": True,
-        "config_schema_validation": True,
-        "manifest_validation": True,
-        "dataset_build": True,
-        "dataloader_build": True,
-        "model_build": True,
-        "forward": True,
-        "backward": True,
-        "optimizer_update": True,
-        "allowed_parameter_change": bool(first["training_step"]["changed_backend_parameters"]),
-        "fixed_frontend_identity": first["fixed_frontend_unchanged"],
-        "morlet_spectral_coverage": True,
-        "checkpoint_save": checkpoint.is_file(),
-        "checkpoint_restore": first["checkpoint_restore"]["passed"],
-        "metric_calculation": True,
-        "result_generation": True,
-        "identity_hashes": True,
-        "repeatability": exact_match,
-        "negative_path": negative_detected,
-    }
-    if not all(steps.values()):
-        raise RuntimeError("one or more dry-run steps did not pass")
-    report = {
-        "schema": "phase0-dry-run-report-v1",
-        "status": "PASS",
-        "formal_experiment": False,
-        "performance_claim_permitted": False,
-        "test_split_accessed": False,
-        **isolation_claim_fields(),
-        "config_hash": config.sha256,
-        "normalized_config_sha256": config.sha256,
-        "source_manifest_sha256": bundle.source_manifest_sha256,
-        "effective_split_hashes": bundle.effective_split_hashes,
-        "code_revision": _git_revision(),
-        "code_identity": _source_code_identity(),
-        "device": str(device),
-        "environment": {
-            "python": sys.version.split()[0],
-            "torch": torch.__version__,
-            "cuda_runtime": torch.version.cuda,
-            "gpu": torch.cuda.get_device_name(device) if device.type == "cuda" else None,
-            "platform": platform.platform(),
-        },
-        "steps": steps,
-        "fixed_frontend_unchanged": first["fixed_frontend_unchanged"],
-        "fixed_frontend_identity": first["fixed_identity"],
-        "morlet_spectral_coverage": spectral_coverage,
-        "optimizer_ownership": first["optimizer_ownership"],
-        "training_step": first["training_step"],
-        "checkpoint_restore": first["checkpoint_restore"],
-        "evaluation": first["evaluation"],
-        "repeatability": {
-            "exact_match": exact_match,
-            "model_state_identity": first["model_state_identity"],
-            "prediction_float32_bits": first["prediction_float32_bits"],
-        },
-        "negative_control": {
-            "name": "duplicate_patch_id",
-            "detected": negative_detected,
-        },
-        "limitations": [
-            "synthetic fixture only",
-            "not a formal experiment",
-            "no CAM16 test split access",
-            "no performance claim",
-        ],
-    }
-    _write_json_exclusive(output / "report.json", report)
-    return report
+    if bundle.split_counts["train"] < 1 or bundle.split_counts["val"] < 1:
+        raise ValueError("training data must contain nonempty train and validation splits")
+    if bundle.isolation.cross_split_conflicts != 0:
+        raise ValueError("slide_id/group_id isolation check failed")
+    return bundle
 
 
 def _perform_preflight(
@@ -834,14 +582,7 @@ def _perform_preflight(
     passed = ["configuration"]
     not_applicable = ["patient_level_isolation"]
     blocked: list[str] = []
-    manifest = data_root / Path(*PurePosixPath(str(config.data["manifest_relpath"])).parts)
-    bundle = validate_manifest(
-        data_root,
-        manifest,
-        check_files=True,
-        reconcile_disk=True,
-        effective_hash_splits=("train", "val"),
-    )
+    bundle = _validate_training_data(config, data_root=data_root, formal=True)
     passed.extend(["manifest_and_disk", "slide_id_isolation"])
     release = _read_json_strict(release_path)
     batch_contract = _batch_contract(config, bundle)
@@ -997,14 +738,7 @@ def _validate_preflight_report_for_training(
     ).resolve()
     if preflight_report_path.resolve() != expected_report_path:
         raise Phase0BlockedError("preflight report path does not match the approved release identity")
-    manifest = data_root / Path(*PurePosixPath(str(config.data["manifest_relpath"])).parts)
-    bundle = validate_manifest(
-        data_root,
-        manifest,
-        check_files=True,
-        reconcile_disk=True,
-        effective_hash_splits=("train", "val"),
-    )
+    bundle = _validate_training_data(config, data_root=data_root, formal=True)
     release = _read_json_strict(release_path)
     batch_contract = _batch_contract(config, bundle)
     release_identity = _validate_release_record(
@@ -1072,16 +806,233 @@ def _validate_preflight_report_for_training(
     return cast(PreflightReport, report), bundle, release_identity, repository_root
 
 
-def _formal_output_base(config: ExperimentConfig) -> Path:
+def _output_base(config: ExperimentConfig) -> Path:
     source_parent = config.source.parent
     base = source_parent.parent if source_parent.name == "configs" else source_parent
     return _runtime_path(base, str(config.execution["output_root"]))
 
 
-def _formal_datasets(bundle: ManifestBundle) -> tuple[PatchDataset, PatchDataset]:
-    """Build only the train and validation datasets used by formal training."""
+def _training_datasets(bundle: ManifestBundle) -> tuple[PatchDataset, PatchDataset]:
+    """Build only the train and validation datasets shared by both training modes."""
 
     return PatchDataset(bundle, "train"), PatchDataset(bundle, "val")
+
+
+def _run_exploratory_seed(
+    config: ExperimentConfig,
+    bundle: ManifestBundle,
+    train_dataset: PatchDataset,
+    val_dataset: PatchDataset,
+    device: torch.device,
+    output_base: Path,
+    *,
+    seed: int,
+    repository_root: Path,
+    requested_overrides: dict[str, Any],
+) -> dict[str, Any]:
+    configure_determinism(seed)
+    seed_dir = output_base / f"seed-{seed}"
+    seed_dir.mkdir(parents=True, exist_ok=False)
+    model = FixedHEClassifier(frontend_backend=str(config.model["frontend_backend"])).to(device)
+    optimizer = _optimizer(config, model)
+    fixed_identity = model.frontend.fixed_state_identity()
+    base_metadata = {
+        "formal_experiment": False,
+        "experiment_mode": "exploratory_train",
+        "run_id": str(config.execution["run_id"]),
+        "requested_overrides": requested_overrides,
+        "code_revision": _git_revision(repository_root),
+        "code_identity": _source_code_identity(repository_root),
+        "config_hash": config.sha256,
+        "source_manifest_sha256": bundle.source_manifest_sha256,
+        "effective_split_hashes": bundle.effective_split_hashes,
+        "fixed_frontend_identity": fixed_identity,
+        **isolation_claim_fields(),
+        "seed": seed,
+    }
+    max_steps = int(config.execution["max_steps"])
+    total_steps = 0
+    best_metric = -float("inf")
+    best_epoch = -1
+    history: list[dict[str, Any]] = []
+    for epoch in range(int(config.training["max_epochs"])):
+        model.train()
+        loader = build_dataloader(
+            train_dataset,
+            batch_size=int(config.training["batch_size"]),
+            seed=seed,
+            epoch=epoch,
+            num_workers=int(config.training["num_workers"]),
+        )
+        losses: list[float] = []
+        for batch in loader:
+            if max_steps and total_steps >= max_steps:
+                break
+            step = train_one_step(
+                model,
+                optimizer,
+                batch["rgb"].to(device),
+                batch["target"].to(device),
+            )
+            losses.append(step.loss)
+            total_steps += 1
+        if not losses:
+            break
+        predictions = _prediction_ledger(
+            model, val_dataset, config, device, seed=seed, epoch=epoch
+        )
+        evaluation = evaluate_predictions(
+            predictions,
+            context=_evaluation_context(
+                config,
+                bundle,
+                val_dataset,
+                model,
+                seed=seed,
+                repository_root=repository_root,
+            ),
+            fit_thresholds=True,
+            ci_seed=seed,
+        )
+        metric = float(evaluation["slide_auroc"]["value"])
+        if metric > best_metric:
+            best_metric = metric
+            best_epoch = epoch
+        metadata = {
+            **base_metadata,
+            "checkpoint_identity": model_state_identity(model),
+            "optimizer_state_identity": optimizer_state_identity(optimizer),
+            "epoch": epoch,
+            "steps_completed": total_steps,
+        }
+        checkpoint_path = seed_dir / f"epoch-{epoch:04d}.pt"
+        save_checkpoint(checkpoint_path, model, optimizer, metadata)
+        epoch_report = {
+            "schema": "exploratory-train-epoch-v1",
+            "formal_experiment": False,
+            "experiment_mode": "exploratory_train",
+            "run_id": str(config.execution["run_id"]),
+            "requested_overrides": requested_overrides,
+            "epoch": epoch,
+            "seed": seed,
+            "batch_count": len(losses),
+            "steps_completed": total_steps,
+            "max_steps": max_steps,
+            "complete_epoch": len(losses) == len(loader),
+            "mean_training_loss": sum(losses) / len(losses),
+            "evaluation": evaluation,
+            "checkpoint": checkpoint_path.name,
+            "checkpoint_file_sha256": raw_sha256(checkpoint_path.read_bytes()),
+            "identities": metadata,
+            "best_epoch": best_epoch,
+            "test_split_accessed": False,
+        }
+        _write_json_exclusive(seed_dir / f"epoch-{epoch:04d}.json", epoch_report)
+        history.append(epoch_report)
+        if max_steps and total_steps >= max_steps:
+            break
+    if not history:
+        raise RuntimeError("exploratory training completed no optimizer steps")
+    return {
+        "formal_experiment": False,
+        "experiment_mode": "exploratory_train",
+        "seed": seed,
+        "best_epoch": best_epoch,
+        "best_validation_slide_auroc": best_metric,
+        "epochs_completed": len(history),
+        "steps_completed": total_steps,
+        "status": "complete",
+    }
+
+
+def run_exploratory_training(
+    config_path: Path | str,
+    *,
+    data_root: Path | str,
+    device: str | None = None,
+    seed: int | None = None,
+    output: Path | str | None = None,
+    run_id: str | None = None,
+    batch_size: int | None = None,
+    num_workers: int | None = None,
+    max_epochs: int | None = None,
+    max_steps: int | None = None,
+) -> dict[str, Any]:
+    """Run non-formal CAM16 train/validation with lightweight safety checks."""
+
+    requested_overrides = {
+        name: str(value).replace("\\", "/") if name == "output" else value
+        for name, value in {
+            "device": device,
+            "seed": seed,
+            "output": output,
+            "run_id": run_id,
+            "batch_size": batch_size,
+            "num_workers": num_workers,
+            "max_epochs": max_epochs,
+            "max_steps": max_steps,
+        }.items()
+        if value is not None
+    }
+    config = load_experiment_config(
+        config_path,
+        exploratory_overrides=requested_overrides,
+    )
+    if config.execution_kind != "exploratory_train":
+        raise ValueError("exploratory training requires execution.kind=exploratory_train")
+    bundle = _validate_training_data(
+        config,
+        data_root=Path(data_root).resolve(),
+        formal=False,
+    )
+    repository_root = _REPOSITORY_ROOT
+    device = torch.device(str(config.execution["device"]))
+    if device.type == "cuda" and not torch.cuda.is_available():
+        raise RuntimeError("configured exploratory CUDA device is unavailable")
+    output_base = _output_base(config)
+    output_base.mkdir(parents=True, exist_ok=False)
+    train_dataset, val_dataset = _training_datasets(bundle)
+    seed_value = int(config.training["seeds"][0])
+    result = _run_exploratory_seed(
+        config,
+        bundle,
+        train_dataset,
+        val_dataset,
+        device,
+        output_base,
+        seed=seed_value,
+        repository_root=repository_root,
+        requested_overrides=requested_overrides,
+    )
+    final_report = {
+        "schema": "exploratory-training-summary-v1",
+        "status": "complete",
+        "formal_experiment": False,
+        "experiment_mode": "exploratory_train",
+        "run_id": str(config.execution["run_id"]),
+        "requested_overrides": requested_overrides,
+        "effective_config": config.as_dict(),
+        "config_hash": config.sha256,
+        "code_revision": _git_revision(repository_root),
+        "code_identity": _source_code_identity(repository_root),
+        "source_manifest_sha256": bundle.source_manifest_sha256,
+        "effective_split_hashes": bundle.effective_split_hashes,
+        **isolation_claim_fields(),
+        "lightweight_safety_checks": {
+            "data_path_exists": True,
+            "manifest_readable": True,
+            "train_validation_paths_exist": True,
+            "train_validation_splits_valid": True,
+            "slide_id_group_id_cross_split_conflicts": 0,
+            "release_or_tag_checked": False,
+            "source_tree_cleanliness_checked": False,
+            "formal_preflight_checked": False,
+        },
+        "run": result,
+        "test_split_accessed": False,
+    }
+    _write_json_exclusive(output_base / "training_summary.json", final_report)
+    return final_report
 
 
 def _epoch_number(path: Path) -> int:
@@ -1281,13 +1232,15 @@ def run_formal_training(
     """Run the frozen train/validation protocol only after every preflight gate passes."""
 
     config = load_experiment_config(config_path)
+    if config.execution_kind != "formal_train":
+        raise ValueError("formal training requires execution.kind=formal_train")
     report, bundle, release_identity, repository_root = _validate_preflight_report_for_training(
         config,
         data_root=Path(data_root).resolve(),
         release_path=Path(release_path).resolve(),
         preflight_report_path=Path(preflight_report_path).resolve(),
     )
-    output_base = _formal_output_base(config)
+    output_base = _output_base(config)
     if output_base.exists() and not resume:
         raise FileExistsError(output_base)
     output_base.mkdir(parents=True, exist_ok=resume)
@@ -1302,7 +1255,7 @@ def run_formal_training(
         with normalized_path.open("xb") as handle:
             handle.write(config.normalized_bytes + b"\n")
     device = torch.device(str(config.execution["device"]))
-    train_dataset, val_dataset = _formal_datasets(bundle)
+    train_dataset, val_dataset = _training_datasets(bundle)
     run_results: list[dict[str, Any]] = []
     for seed_value in config.training["seeds"]:
         seed = int(seed_value)

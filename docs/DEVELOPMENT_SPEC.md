@@ -37,9 +37,14 @@ closure authorization recorded in `docs/DECISIONS.md`, work in this phase may:
 - inspect local metadata and validate an explicitly supplied split manifest without
   moving samples or changing split membership.
 
-Phase 0 did **not** itself authorize formal model training, comparative experiments,
-test-set evaluation, or transfer evaluation. The synthetic dry run remains
-explicitly non-formal. When the exact annotated `phase1-training-b32-v3` tag exists
+Phase 0 did **not** itself authorize formal model training, test-set evaluation, or
+transfer evaluation. Development may use `exploratory_train` with real CAM16
+train/validation data for profiling, engineering performance work, bounded-step
+checks, and explicitly non-formal experiments. Exploratory execution requires no
+release, tag, clean tree, or formal preflight; every artifact must state
+`formal_experiment=false` and `experiment_mode=exploratory_train`, and no result may
+be promoted or renamed as formal evidence. When the exact annotated
+`phase1-training-b32-v3` tag exists
 and resolves to its three-file release commit,
 `configs/phase1_training_release_b32_v3.json` binds the revised frozen Phase 1
 CAM16 train/validation baseline to its normalized configuration, approved source
@@ -61,6 +66,14 @@ identity. `phase1-training-b32-v3` is a distinct release-governance identity and
 does not change the optimizer, data split, model, seed, or evaluation contract.
 Formal preflight computes no test effective-split identity, test access remains
 unauthorized, and patient-level isolation remains `not_evaluated`.
+
+The only real CAM16 training modes are `exploratory_train` and `formal_train`.
+Both are restricted to train/validation and expose no test-access parameter.
+They share manifest readability, legal split, and supplied `group_id`/`slide_id`
+cross-split isolation checks. `formal_train` additionally retains every approved
+release, annotated-tag, clean-tree, source/config/manifest hash, formal-preflight,
+fixed-seed, complete-epoch, validation-checkpoint, immutable-output, and provenance
+gate. Exploratory configurability must never weaken those formal exact locks.
 
 ## 3. Locked project scope
 
@@ -1101,7 +1114,10 @@ Phase 0 is complete only when all of the following artifacts exist and agree:
    and kernel-tensor hashes, explicit channel metadata, and shared H/E tensor
    identity.
 8. Unit tests for all implemented Phase 0 modules.
-9. A smoke test that runs the public pipeline seam on synthetic data only.
+9. Historical Phase 0 acceptance evidence includes the then-public synthetic
+   pipeline smoke. The retired dry-run entry need not remain active; the current
+   project smoke validates CLI/config routing and pipeline control flow without
+   starting a training run.
 10. Documentation of test commands, expected evidence, and any skipped checks.
 11. Explicit human decisions for every formerly blocking group, recorded in
     `docs/DECISIONS.md`.
@@ -1123,7 +1139,7 @@ The gate is **closed by default**. It passes only when:
 
 - every Phase 0 deliverable is present;
 - all unit tests for changed modules pass;
-- the project smoke test passes;
+- the current non-training CLI/config/pipeline-control-flow smoke test passes;
 - no test, fixture, or configuration supplies a hidden or unresolved value;
 - the supplied `group_id`/`slide_id` split isolation check passes with no
   cross-split identifier conflict;

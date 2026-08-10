@@ -163,6 +163,7 @@ def validate_manifest(
     check_files: bool,
     reconcile_disk: bool,
     effective_hash_splits: tuple[str, ...] = _SPLITS,
+    file_check_splits: tuple[str, ...] = _SPLITS,
 ) -> ManifestBundle:
     """Validate an immutable existing-patch manifest without reading patch pixels."""
 
@@ -170,6 +171,10 @@ def validate_manifest(
         effective_hash_splits
     ) or any(split not in _SPLITS for split in effective_hash_splits):
         raise DataContractError("effective hash splits must be unique approved splits")
+    if not file_check_splits or len(set(file_check_splits)) != len(file_check_splits) or any(
+        split not in _SPLITS for split in file_check_splits
+    ):
+        raise DataContractError("file check splits must be unique approved splits")
     package_root = Path(root).resolve()
     manifest_path = Path(manifest).resolve()
     if not package_root.is_dir():
@@ -226,7 +231,9 @@ def validate_manifest(
         if previous_target != slide_target:
             raise DataContractError(f"conflicting slide labels for slide_id: {slide_id}")
         resolved_patch = _resolve_inside(package_root, path)
-        if check_files and (not resolved_patch.is_file() or resolved_patch.is_symlink()):
+        if check_files and split in file_check_splits and (
+            not resolved_patch.is_file() or resolved_patch.is_symlink()
+        ):
             raise DataContractError(f"missing patch file for manifest row: {normalized_path}")
         rows.append(
             ManifestRow(

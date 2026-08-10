@@ -1674,3 +1674,34 @@ Verification and scope:
 - This publication authorizes only the already approved CAM16 train/validation
   entry. It does not execute training, authorize test access, make a patient-level
   leakage claim, alter a dataset split, or advance another phase.
+
+## 2026-08-10 — Replace synthetic dry-run with exploratory/formal training modes
+
+Human-approved workflow change:
+
+- The only real CAM16 training modes are `exploratory_train` and `formal_train`.
+  The synthetic dry-run CLI, configuration profile, implementation, acceptance
+  dependency, and active documentation are retired.
+- `exploratory_train` uses real CAM16 train/validation data for profiling,
+  performance optimization, bounded `max_steps`, one-epoch checks, and other
+  explicitly non-formal experiments. It may run from a dirty/untracked tree and
+  does not require a release, tag, clean-tree audit, formal hash authorization, or
+  formal preflight report.
+- Exploratory CLI overrides are limited to seed, output/run identity, batch size,
+  worker count, runtime device, maximum epochs, and maximum steps. Every exploratory report and
+  checkpoint metadata record `formal_experiment=false` and
+  `experiment_mode=exploratory_train`; these results cannot be automatically
+  promoted or renamed as formal evidence.
+- Shared lightweight data safety checks cover the data path, readable manifest,
+  legal nonempty train/validation splits, and supplied `group_id`/`slide_id`
+  cross-split isolation. Neither mode exposes or constructs a test dataset.
+
+Unchanged formal and scientific contracts:
+
+- `formal_train` retains the approved release, annotated tag, clean source tree,
+  release/config/source/manifest hashes, standalone formal preflight, fixed seeds,
+  complete epochs, validation checkpoint selection, immutable checkpoints,
+  provenance, formal output identity, and non-overwrite gates.
+- No dataset split, final-once test rule, isolation claim, fixed optical frontend,
+  Morlet definition, spatial-pyramid numerical rule, formal metric, checkpoint
+  winner rule, formal seed, provenance rule, or project phase changes.

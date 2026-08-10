@@ -12,6 +12,12 @@ published, active training preflight consumes the hash-bound
 `docs/PHASE1_TRAINING_RUNBOOK.md`. Commands below remain the historical
 `phase0-closed-v1` evidence and are not current-checkout Phase 1 commands.
 
+Scope note (2026-08-10): this matrix remains immutable historical acceptance
+evidence. Its formal release/hash/fail-closed clauses constrain only
+`formal_train`; they are not startup conditions for `exploratory_train`. Historical
+dry-run commands and artifacts below document what was accepted then and are not
+available workflow entry points in the current CLI.
+
 ## Deliverables
 
 | ID | Deliverable | Code | Configuration | Test / command | Acceptance rule | Evidence | Status |

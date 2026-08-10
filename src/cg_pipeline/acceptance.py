@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from .claims import audit_isolation_claim_payload, audit_isolation_claim_text
+from .claims import audit_isolation_claim_text
 from .config import load_experiment_config
 from .pipeline import _perform_preflight, _write_json_exclusive
 
@@ -198,7 +198,6 @@ def run_phase0_acceptance(
     config_path: Path | str,
     data_root: Path | str,
     release_path: Path | str,
-    dry_report_path: Path | str,
     decision30_report_path: Path | str,
     output_path: Path | str,
 ) -> dict[str, Any]:
@@ -210,17 +209,6 @@ def run_phase0_acceptance(
         release_path=Path(release_path).resolve(),
     )
     decision30 = audit_decision30_report(decision30_report_path)
-    dry_report = _read_json(Path(dry_report_path))
-    dry_claim_audit = audit_isolation_claim_payload(dry_report)
-    dry_pass = (
-        dry_report.get("status") == "PASS"
-        and dry_report.get("formal_experiment") is False
-        and dry_report.get("test_split_accessed") is False
-        and all(dry_report.get("steps", {}).values())
-        and dry_claim_audit["status"] == "PASS"
-    )
-    if not dry_pass:
-        raise AcceptanceError("dry-run evidence does not pass its strict contract")
     tracked = audit_tracked_files(root)
     tests = _test_evidence(root)
     documents = _documentation_audit(root)
@@ -236,21 +224,21 @@ def run_phase0_acceptance(
         {
             "gate": "configuration_contract",
             "result": "PASS",
-            "command": "python -m cg_pipeline preflight ...",
+            "command": "python -m cg_pipeline formal-preflight ...",
             "evidence": preflight["config_hash"],
             "blocker": None,
         },
         {
             "gate": "patch_manifest_and_disk_contract",
             "result": "PASS" if "manifest_and_disk" in preflight["passed_gates"] else "FAIL",
-            "command": "python -m cg_pipeline preflight ...",
+            "command": "python -m cg_pipeline formal-preflight ...",
             "evidence": preflight["source_manifest_sha256"],
             "blocker": None,
         },
         {
             "gate": "slide_id_split_isolation",
             "result": "PASS" if "slide_id_isolation" in preflight["passed_gates"] else "FAIL",
-            "command": "python -m cg_pipeline preflight ...",
+            "command": "python -m cg_pipeline formal-preflight ...",
             "evidence": preflight["isolation"],
             "blocker": None,
         },
@@ -305,13 +293,6 @@ def run_phase0_acceptance(
             "blocker": internal_preflight_failures or None,
         },
         {
-            "gate": "synthetic_end_to_end_dry_run",
-            "result": "PASS",
-            "command": "python -m cg_pipeline dry-run --config configs/phase0_dry_run.toml --workspace-root .",
-            "evidence": str(Path(dry_report_path)),
-            "blocker": None,
-        },
-        {
             "gate": "full_tests_static_and_forbidden_file_audit",
             "result": "PASS" if tests["status"] == tracked["status"] == "PASS" else "FAIL",
             "command": "pytest; compileall; ruff; git diff --check; git ls-files audit",
@@ -323,7 +304,7 @@ def run_phase0_acceptance(
             "result": (
                 "PASS" if "phase1_training_release" in preflight["passed_gates"] else "FAIL"
             ),
-            "command": "python -m cg_pipeline preflight ...",
+            "command": "python -m cg_pipeline formal-preflight ...",
             "evidence": str(Path(release_path)),
             "blocker": (
                 None
@@ -359,7 +340,6 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--data-root", type=Path, required=True)
     parser.add_argument("--release", type=Path, required=True)
-    parser.add_argument("--dry-report", type=Path, required=True)
     parser.add_argument("--decision30-report", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
@@ -369,7 +349,6 @@ def main(argv: list[str] | None = None) -> int:
             config_path=args.config,
             data_root=args.data_root,
             release_path=args.release,
-            dry_report_path=args.dry_report,
             decision30_report_path=args.decision30_report,
             output_path=args.output,
         )

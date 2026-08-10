@@ -1,28 +1,58 @@
 from __future__ import annotations
 
+import csv
 import json
-import shutil
 from pathlib import Path
 
 import pytest
 
+import cg_pipeline.__main__ as cli_module
+import cg_pipeline.pipeline as pipeline_module
+from cg_pipeline.__main__ import main
 from cg_pipeline.config import load_experiment_config
-from cg_pipeline.pipeline import Phase0BlockedError, run_dry_run, run_preflight
+from cg_pipeline.pipeline import run_exploratory_training
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 
 
-def _config_copy(source: str, target: Path) -> Path:
-    target.write_text(
-        (REPOSITORY / "configs" / source).read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    return target
+def _manifest_package(root: Path) -> Path:
+    rows = []
+    for split, label_name, label in (
+        ("train", "normal", 0),
+        ("train", "tumor", 1),
+        ("val", "normal", 0),
+        ("val", "tumor", 1),
+        ("test", "normal", 0),
+    ):
+        relative = f"patches/{split}/{label_name}/patch-{split}-{label_name}.png"
+        rows.append(
+            {
+                "patch_id": f"patch-{split}-{label_name}",
+                "patch_path": relative,
+                "split": split,
+                "slide_id": f"slide-{split}-{label_name}",
+                "label": str(label),
+                "label_name": label_name,
+                "patch_label": label_name,
+                "slide_label": label_name,
+            }
+        )
+        if split != "test":
+            path = root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.touch()
+    manifest = root / "cam16_class_quota" / "metadata" / "training_manifest.csv"
+    manifest.parent.mkdir(parents=True)
+    with manifest.open("x", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+    return root
 
 
-def test_repository_formal_and_dry_configs_are_machine_validated() -> None:
+def test_repository_formal_and_exploratory_configs_are_machine_validated() -> None:
     formal = load_experiment_config(REPOSITORY / "configs" / "phase1_baseline.toml")
-    dry = load_experiment_config(REPOSITORY / "configs" / "phase0_dry_run.toml")
+    exploratory = load_experiment_config(REPOSITORY / "configs" / "exploratory_train.toml")
     historical_release = json.loads(
         (REPOSITORY / "configs" / "phase1_training_release_b32_v2.json").read_text(
             encoding="utf-8"
@@ -30,65 +60,138 @@ def test_repository_formal_and_dry_configs_are_machine_validated() -> None:
     )
 
     assert formal.execution_kind == "formal_train"
-    assert dry.execution_kind == "dry_run"
-    assert formal.execution["allow_test"] is False
-    assert dry.execution["allow_test"] is False
-    assert formal.training["batch_size"] == 32
-    assert dry.training["batch_size"] == 32
-    assert formal.execution["run_id"] == "phase1-cam16-baseline-b32-v2"
+    assert exploratory.execution_kind == "exploratory_train"
+    assert formal.execution["allow_test"] is exploratory.execution["allow_test"] is False
+    assert formal.training["seeds"] == (1729, 3407, 7919)
+    assert exploratory.training["seeds"] == (1729,)
     assert formal.sha256 == (
         "sha256:e44768d80d7c1545138d7d5e1368de4ed53b7b07b71202e2c5bdee6efac7cf3b"
     )
-    assert historical_release["release_id"] == "phase1-training-b32-v2"
     assert historical_release["config_hash"] == formal.sha256
-    assert formal.sha256 != dry.sha256
 
 
-def test_complete_synthetic_dry_run_is_repeatable_and_covers_failure(tmp_path: Path) -> None:
-    config_path = _config_copy("phase0_dry_run.toml", tmp_path / "dry.toml")
+def test_exploratory_training_uses_only_lightweight_checks_and_records_overrides(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config_path = tmp_path / "exploratory.toml"
+    config_path.write_text(
+        (REPOSITORY / "configs" / "exploratory_train.toml").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    data_root = _manifest_package(tmp_path / "cam16")
+    observed_datasets: dict[str, object] = {}
 
-    report = run_dry_run(config_path, workspace_root=tmp_path)
+    def fake_seed(*args: object, seed: int, **kwargs: object) -> dict[str, object]:
+        observed_datasets["splits"] = (args[2].split, args[3].split)
+        observed_datasets["row_splits"] = {
+            row.split for dataset in (args[2], args[3]) for row in dataset.rows
+        }
+        return {
+            "formal_experiment": False,
+            "experiment_mode": "exploratory_train",
+            "seed": seed,
+            "best_epoch": 0,
+            "best_validation_slide_auroc": 0.5,
+            "epochs_completed": 1,
+            "steps_completed": 2,
+            "status": "complete",
+        }
 
-    assert report["status"] == "PASS"
-    assert report["schema"] == "phase0-dry-run-report-v1"
+    monkeypatch.setattr(pipeline_module, "_run_exploratory_seed", fake_seed)
+    monkeypatch.setattr(
+        pipeline_module,
+        "_validate_preflight_report_for_training",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("exploratory training called a formal preflight gate")
+        ),
+    )
+    monkeypatch.setattr(
+        pipeline_module,
+        "_validate_release_record",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("exploratory training called a formal release gate")
+        ),
+    )
+    monkeypatch.setattr(pipeline_module.torch.cuda, "is_available", lambda: True)
+    report = run_exploratory_training(
+        config_path,
+        data_root=data_root,
+        device="cuda:1",
+        seed=41,
+        output="artifacts/exploratory_runs/profile-41",
+        run_id="profile-41",
+        batch_size=8,
+        num_workers=3,
+        max_epochs=1,
+        max_steps=2,
+    )
+
     assert report["formal_experiment"] is False
+    assert report["experiment_mode"] == "exploratory_train"
+    assert report["requested_overrides"] == {
+        "device": "cuda:1",
+        "seed": 41,
+        "output": "artifacts/exploratory_runs/profile-41",
+        "run_id": "profile-41",
+        "batch_size": 8,
+        "num_workers": 3,
+        "max_epochs": 1,
+        "max_steps": 2,
+    }
+    assert report["effective_config"]["training"]["seeds"] == [41]
+    assert report["effective_config"]["execution"]["device"] == "cuda:1"
+    assert report["lightweight_safety_checks"]["release_or_tag_checked"] is False
+    assert report["lightweight_safety_checks"]["formal_preflight_checked"] is False
     assert report["test_split_accessed"] is False
-    assert report["isolation_claim"] == "group_id/slide_id split isolation verified"
-    assert report["patient_level_isolation"] == "not_evaluated"
-    assert report["patient_level_claim_allowed"] is False
-    assert all(report["steps"].values())
-    assert report["fixed_frontend_unchanged"] is True
-    assert report["repeatability"]["exact_match"] is True
-    assert report["negative_control"]["detected"] is True
-    assert report["negative_control"]["name"] == "duplicate_patch_id"
-    assert report["checkpoint_restore"]["passed"] is True
-    output = tmp_path / "artifacts" / "phase0_dry_run_v1"
-    assert (output / "report.json").is_file()
-    assert (output / "checkpoint" / "epoch-0000.pt").is_file()
-    assert json.loads((output / "report.json").read_text(encoding="utf-8")) == report
+    assert observed_datasets == {
+        "splits": ("train", "val"),
+        "row_splits": {"train", "val"},
+    }
+    summary = tmp_path / "artifacts" / "exploratory_runs" / "profile-41" / "training_summary.json"
+    assert json.loads(summary.read_text(encoding="utf-8")) == report
 
 
-def test_preflight_rejects_legacy_release_without_bound_identities(tmp_path: Path) -> None:
-    dry_config = _config_copy("phase0_dry_run.toml", tmp_path / "dry.toml")
-    run_dry_run(dry_config, workspace_root=tmp_path)
-    data_root = tmp_path / "artifacts" / "phase0_dry_run_v1" / "synthetic_package"
-    nested_metadata = data_root / "cam16_class_quota" / "metadata"
-    nested_metadata.mkdir(parents=True)
-    shutil.copy2(
-        data_root / "metadata" / "training_manifest.csv",
-        nested_metadata / "training_manifest.csv",
+def test_cli_exposes_only_explicit_exploratory_and_formal_training_commands(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_exploratory(config: Path, **kwargs: object) -> dict[str, object]:
+        captured.update({"config": config, **kwargs})
+        return {"run": {"status": "complete"}}
+
+    monkeypatch.setattr(cli_module, "run_exploratory_training", fake_exploratory)
+    exit_code = main(
+        [
+            "exploratory-train",
+            "--config",
+            str(tmp_path / "config.toml"),
+            "--data-root",
+            str(tmp_path / "data"),
+            "--device",
+            "cpu",
+            "--seed",
+            "7",
+            "--output",
+            "artifacts/exploratory_runs/cli-7",
+            "--run-id",
+            "cli-7",
+            "--batch-size",
+            "4",
+            "--num-workers",
+            "2",
+            "--max-epochs",
+            "1",
+            "--max-steps",
+            "3",
+        ]
     )
-    formal_config = _config_copy("phase1_baseline.toml", tmp_path / "formal.toml")
-    legacy_release = tmp_path / "legacy-release.json"
-    shutil.copy2(
-        REPOSITORY / "configs" / "phase1_training_release_b32_v2.json",
-        legacy_release,
-    )
 
-    with pytest.raises(Phase0BlockedError, match="phase1-training-release-v2"):
-        run_preflight(
-            formal_config,
-            data_root=data_root,
-            release_path=legacy_release,
-            output_path=tmp_path / "must-not-exist.json",
-        )
+    assert exit_code == 0
+    assert captured["seed"] == 7
+    assert captured["device"] == "cpu"
+    assert captured["max_steps"] == 3
+    with pytest.raises(SystemExit):
+        main(["dry-run"])
+    with pytest.raises(SystemExit):
+        main(["train"])

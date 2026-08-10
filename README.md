@@ -13,10 +13,11 @@ deployment code.
 - `run_calibration_gate(...)`: real non-CPU calibration across the two forward
   objects, three separate backward `dZ` fixtures, quarter-margin gate, negative
   controls, and audit identities.
-- `python -m cg_pipeline dry-run`: complete non-formal synthetic pipeline.
-- `python -m cg_pipeline preflight`: formal configuration, data, model, precision,
+- `python -m cg_pipeline exploratory-train`: real CAM16 train/validation for
+  profiling, performance tuning, and other explicitly non-formal experiments.
+- `python -m cg_pipeline formal-preflight`: formal configuration, data, model, precision,
   isolation, and release gates.
-- `python -m cg_pipeline train`: the sole formal training entry; it consumes the
+- `python -m cg_pipeline formal-train`: the sole formal training entry; it consumes the
   release-bound standalone preflight report, revalidates every live identity, and
   starts no batch when any gate fails.
 
@@ -47,7 +48,34 @@ formal acceptance. `formal_acceptance` is available through
 formal input shape and hashes, plus the expected environment identity. Reports
 are created exclusively; an existing JSON file is never overwritten.
 
-## Phase 0 verification
+## Training modes
+
+Exploratory training accepts one seed and controlled engineering overrides without
+requiring a release, tag, clean tree, or formal preflight. Its outputs are confined
+to `artifacts/exploratory_runs/<run_id>/` and every report/checkpoint records
+`formal_experiment=false` and `experiment_mode=exploratory_train`. Exploratory
+results cannot be relabelled or automatically promoted to formal results.
+
+Formal training remains release-bound, hash-bound, preflight-gated, multi-seed,
+immutable, and non-overwriting. Both modes construct only train and validation
+datasets; neither CLI exposes test access.
+
+```powershell
+$env:PYTHONPATH = 'E:\cg\src'
+python -m cg_pipeline exploratory-train `
+  --config configs\exploratory_train.toml `
+  --data-root cam16_patch `
+  --device cuda:0 `
+  --seed 1729 `
+  --output artifacts/exploratory_runs/profile-1729 `
+  --run-id profile-1729 `
+  --batch-size 32 `
+  --num-workers 4 `
+  --max-epochs 1 `
+  --max-steps 100
+```
+
+## Formal verification and training
 
 ```powershell
 $env:PYTHONPATH = 'E:\cg\src'
@@ -56,25 +84,21 @@ python -m compileall -q src tests
 python -m ruff check .
 git diff --check
 
-python -m cg_pipeline dry-run `
-  --config configs\phase0_dry_run.toml `
-  --workspace-root .
-
-python -m cg_pipeline preflight `
+python -m cg_pipeline formal-preflight `
   --config configs\phase1_baseline.toml `
   --data-root cam16_patch `
   --release configs\phase1_training_release_b32_v3.json `
   --output artifacts\preflight\phase1-training-b32-v3\preflight.json
 
-python -m cg_pipeline train `
+python -m cg_pipeline formal-train `
   --config configs\phase1_baseline.toml `
   --data-root cam16_patch `
   --release configs\phase1_training_release_b32_v3.json `
   --preflight-report artifacts\preflight\phase1-training-b32-v3\preflight.json
 ```
 
-The dry run is synthetic and cannot support a performance claim. The formal
-configuration is a preregistered starting baseline, not an empirically established
+The exploratory configuration is non-formal. The formal configuration is a
+preregistered starting baseline, not an empirically established
 optimum. Phase 0 is closed and preflight authorizes the frozen CAM16 Phase 1
 train/validation entry when every applicable gate passes. The only isolation
 statement is `group_id/slide_id split isolation verified`; machine-readable state
@@ -100,7 +124,7 @@ historical unbound `configs/phase0_release.json` for this revised contract.
 
 ```powershell
 $env:PYTHONPATH = 'E:\cg\src'
-python -m cg_pipeline train `
+python -m cg_pipeline formal-train `
   --config configs\phase1_baseline.toml `
   --data-root cam16_patch `
   --release configs\phase1_training_release_b32_v3.json `

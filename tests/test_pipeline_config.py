@@ -14,16 +14,16 @@ def _document() -> str:
 schema_version = "phase0-experiment-config-v1"
 
 [execution]
-kind = "dry_run"
-run_id = "phase0-synthetic-dry-run-v1"
+kind = "exploratory_train"
+run_id = "exploratory-default"
 device = "cuda:0"
-output_root = "artifacts/phase0_dry_run_v1"
-max_steps = 1
+output_root = "artifacts/exploratory_runs/exploratory-default"
+max_steps = 0
 allow_test = false
 
 [data]
 contract_id = "cam16-existing-patch-v1"
-manifest_relpath = "metadata/training_manifest.csv"
+manifest_relpath = "cam16_class_quota/metadata/training_manifest.csv"
 identity_level = "slide_id"
 identity_column = "slide_id"
 sample_id_column = "patch_id"
@@ -66,7 +66,7 @@ epsilon = "0.00000001"
 weight_decay = "0.0001"
 scheduler = "none"
 batch_size = 32
-max_epochs = 20
+max_epochs = 1
 early_stopping_patience = 5
 early_stopping_min_delta = "0"
 checkpoint_metric = "val_slide_auroc"
@@ -74,7 +74,7 @@ checkpoint_tie_break = "earliest_epoch"
 checkpoint_save = "every-complete-epoch-immutable"
 class_imbalance = "uniform-unweighted"
 gradient_clip = "none"
-seeds = [1729, 3407, 7919]
+seeds = [1729]
 sampler = "hash-order-once-per-epoch"
 num_workers = 0
 failed_run_policy = "exclude-and-report-no-auto-retry"
@@ -120,10 +120,10 @@ def test_config_is_strict_normalized_and_hashed(tmp_path: Path) -> None:
     config = load_experiment_config(path)
 
     assert config.schema_version == "phase0-experiment-config-v1"
-    assert config.execution_kind == "dry_run"
+    assert config.execution_kind == "exploratory_train"
     assert config.data["identity_level"] == "slide_id"
     assert config.training["batch_size"] == 32
-    assert config.training["seeds"] == (1729, 3407, 7919)
+    assert config.training["seeds"] == (1729,)
     assert config.normalized_bytes == canonical_json_bytes(config.as_dict())
     assert config.sha256 == "sha256:" + hashlib.sha256(config.normalized_bytes).hexdigest()
 
@@ -132,7 +132,7 @@ def test_config_is_strict_normalized_and_hashed(tmp_path: Path) -> None:
     ("changed", "message"),
     [
         (lambda text: text.replace("allow_test = false", "allow_test = false\nunknown = 1"), "unknown"),
-        (lambda text: text.replace('run_id = "phase0-synthetic-dry-run-v1"\n', ""), "missing"),
+        (lambda text: text.replace('run_id = "exploratory-default"\n', ""), "missing"),
         (lambda text: text.replace('gradient_clip = "none"', 'gradient_clip = "TBD"'), "TBD"),
         (lambda text: text.replace('learning_rate = "0.001"', "learning_rate = 0.001"), "floating"),
         (lambda text: text.replace("allow_test = false", "allow_test = true"), "test access"),
@@ -171,8 +171,6 @@ def test_canonical_json_rejects_non_jcs_values_and_preserves_unicode() -> None:
     ("old", "new"),
     [
         ('learning_rate = "0.001"', 'learning_rate = "0.002"'),
-        ("batch_size = 32", "batch_size = 31"),
-        ("seeds = [1729, 3407, 7919]", "seeds = [1, 2, 3]"),
         ('checkpoint_metric = "val_slide_auroc"', 'checkpoint_metric = "patch_auroc"'),
         (
             'confidence_interval = "stratified-slide-bootstrap-percentile-2000"',
@@ -196,3 +194,61 @@ def test_domain_hash_separates_domains_and_payloads() -> None:
 
     assert first.startswith("sha256:") and len(first) == 71
     assert len({first, second, third}) == 3
+
+
+def test_exploratory_engineering_overrides_are_typed_and_hashed(tmp_path: Path) -> None:
+    path = tmp_path / "exploratory.toml"
+    path.write_text(_document(), encoding="utf-8")
+
+    config = load_experiment_config(
+        path,
+        exploratory_overrides={
+            "device": "cpu",
+            "seed": 41,
+            "output": "artifacts/exploratory_runs/profile-41",
+            "run_id": "profile-41",
+            "batch_size": 8,
+            "num_workers": 2,
+            "max_epochs": 3,
+            "max_steps": 11,
+        },
+    )
+
+    assert config.training["seeds"] == (41,)
+    assert config.execution["device"] == "cpu"
+    assert config.training["batch_size"] == 8
+    assert config.training["num_workers"] == 2
+    assert config.training["max_epochs"] == 3
+    assert config.execution["max_steps"] == 11
+    assert config.execution["output_root"] == "artifacts/exploratory_runs/profile-41"
+
+
+def test_formal_config_keeps_engineering_fields_exact_locked(tmp_path: Path) -> None:
+    source = (Path(__file__).resolve().parents[1] / "configs" / "phase1_baseline.toml").read_text(
+        encoding="utf-8"
+    )
+    path = tmp_path / "formal.toml"
+    path.write_text(source.replace("batch_size = 32", "batch_size = 8"), encoding="utf-8")
+
+    with pytest.raises(ConfigError, match="locked contract"):
+        load_experiment_config(path)
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"seed": "7"},
+        {"device": "gpu:0"},
+        {"batch_size": 0},
+        {"num_workers": -1},
+        {"max_epochs": 0},
+        {"max_steps": -1},
+        {"output": "artifacts/formal_runs/not-allowed"},
+    ],
+)
+def test_exploratory_overrides_fail_closed(tmp_path: Path, overrides: dict[str, object]) -> None:
+    path = tmp_path / "exploratory.toml"
+    path.write_text(_document(), encoding="utf-8")
+
+    with pytest.raises(ConfigError):
+        load_experiment_config(path, exploratory_overrides=overrides)

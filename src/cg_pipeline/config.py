@@ -1,11 +1,11 @@
-"""Strict, default-free Phase 0 experiment configuration."""
+"""Strict configuration for exploratory and formal CAM16 training."""
 
 from __future__ import annotations
 
 import hashlib
 from collections.abc import Mapping
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from types import MappingProxyType
 from typing import Any
 
@@ -187,13 +187,13 @@ _EXACT_VALUES: dict[tuple[str, str], Any] = {
 }
 
 _EXECUTION_PROFILES: dict[str, dict[str, Any]] = {
-    "dry_run": {
-        "run_id": "phase0-synthetic-dry-run-v1",
+    "exploratory_train": {
+        "run_id": "exploratory-default",
         "device": "cuda:0",
-        "output_root": "artifacts/phase0_dry_run_v1",
-        "max_steps": 1,
+        "output_root": "artifacts/exploratory_runs/exploratory-default",
+        "max_steps": 0,
         "allow_test": False,
-        "manifest_relpath": "metadata/training_manifest.csv",
+        "manifest_relpath": "cam16_class_quota/metadata/training_manifest.csv",
     },
     "formal_train": {
         "run_id": "phase1-cam16-baseline-b32-v2",
@@ -203,6 +203,24 @@ _EXECUTION_PROFILES: dict[str, dict[str, Any]] = {
         "allow_test": False,
         "manifest_relpath": "cam16_class_quota/metadata/training_manifest.csv",
     },
+}
+
+_EXPLORATORY_UNLOCKED_EXACT_FIELDS = {
+    ("training", "batch_size"),
+    ("training", "max_epochs"),
+    ("training", "seeds"),
+    ("training", "num_workers"),
+}
+
+_EXPLORATORY_OVERRIDE_TARGETS = {
+    "device": ("execution", "device"),
+    "seed": ("training", "seeds"),
+    "batch_size": ("training", "batch_size"),
+    "num_workers": ("training", "num_workers"),
+    "max_epochs": ("training", "max_epochs"),
+    "max_steps": ("execution", "max_steps"),
+    "output": ("execution", "output_root"),
+    "run_id": ("execution", "run_id"),
 }
 
 _BOOL_FIELDS = set(_SECTION_KEYS["determinism"]) | {"allow_test"}
@@ -273,12 +291,15 @@ def _validate_shape(document: dict[str, Any]) -> None:
 
 def _validate_semantics(document: dict[str, Any]) -> None:
     execution = document["execution"]
-    if execution["kind"] not in {"dry_run", "formal_train"}:
-        raise ConfigError("execution.kind must be dry_run or formal_train")
+    if execution["kind"] not in {"exploratory_train", "formal_train"}:
+        raise ConfigError("execution.kind must be exploratory_train or formal_train")
     if execution["allow_test"] is not False:
         raise ConfigError("test access must be false in every training configuration")
     profile = _EXECUTION_PROFILES[execution["kind"]]
-    for key in ("run_id", "device", "output_root", "max_steps", "allow_test"):
+    locked_execution_fields = ("allow_test",)
+    if execution["kind"] == "formal_train":
+        locked_execution_fields = ("run_id", "device", "output_root", "max_steps", "allow_test")
+    for key in locked_execution_fields:
         if execution[key] != profile[key]:
             raise ConfigError(f"execution.{key} conflicts with the locked {execution['kind']} profile")
     if document["data"]["manifest_relpath"] != profile["manifest_relpath"]:
@@ -287,8 +308,49 @@ def _validate_semantics(document: dict[str, Any]) -> None:
     if mapping_evidence != "not_available":
         raise ConfigError("patient mapping evidence must remain not_available for CAM16 Phase 1")
     for (section, key), expected in _EXACT_VALUES.items():
+        if execution["kind"] == "exploratory_train" and (
+            section,
+            key,
+        ) in _EXPLORATORY_UNLOCKED_EXACT_FIELDS:
+            continue
         if document[section][key] != expected:
             raise ConfigError(f"{section}.{key} conflicts with the locked contract")
+    if execution["kind"] == "exploratory_train":
+        if not execution["run_id"] or execution["run_id"] != execution["run_id"].strip():
+            raise ConfigError("exploratory execution.run_id must be nonempty without outer whitespace")
+        device = execution["device"]
+        valid_device = isinstance(device, str) and (
+            device == "cpu"
+            or device == "cuda"
+            or (device.startswith("cuda:") and device[5:].isdigit())
+        )
+        if not valid_device:
+            raise ConfigError("exploratory execution.device must be cpu, cuda, or cuda:<index>")
+        output_root = PurePosixPath(str(execution["output_root"]))
+        if (
+            output_root.is_absolute()
+            or output_root.parts[:2] != ("artifacts", "exploratory_runs")
+            or any(part in {"", ".", ".."} for part in output_root.parts)
+        ):
+            raise ConfigError(
+                "exploratory execution.output_root must be under artifacts/exploratory_runs"
+            )
+        seeds = document["training"]["seeds"]
+        if (
+            len(seeds) != 1
+            or not isinstance(seeds[0], int)
+            or isinstance(seeds[0], bool)
+            or seeds[0] < 0
+        ):
+            raise ConfigError("exploratory training requires exactly one nonnegative integer seed")
+        if document["training"]["batch_size"] < 1:
+            raise ConfigError("exploratory training.batch_size must be positive")
+        if document["training"]["num_workers"] < 0:
+            raise ConfigError("exploratory training.num_workers must be nonnegative")
+        if document["training"]["max_epochs"] < 1:
+            raise ConfigError("exploratory training.max_epochs must be positive")
+        if execution["max_steps"] < 0:
+            raise ConfigError("exploratory execution.max_steps must be nonnegative")
     expected_basis = [
         "0.644211",
         "0.716556",
@@ -383,12 +445,32 @@ class ExperimentConfig:
         return _thaw(self._document)
 
 
-def load_experiment_config(path: Path | str) -> ExperimentConfig:
+def load_experiment_config(
+    path: Path | str,
+    *,
+    exploratory_overrides: Mapping[str, Any] | None = None,
+) -> ExperimentConfig:
     source = Path(path)
     try:
         document = tomllib.loads(source.read_text(encoding="utf-8"))
     except (OSError, tomllib.TOMLDecodeError) as error:
         raise ConfigError(f"cannot load configuration: {error}") from error
+    overrides = dict(exploratory_overrides or {})
+    unknown_overrides = set(overrides).difference(_EXPLORATORY_OVERRIDE_TARGETS)
+    if unknown_overrides:
+        raise ConfigError(f"unknown exploratory overrides: {sorted(unknown_overrides)}")
+    if overrides:
+        if document.get("execution", {}).get("kind") != "exploratory_train":
+            raise ConfigError("exploratory overrides require execution.kind=exploratory_train")
+        for name, value in overrides.items():
+            if name in {"seed", "batch_size", "num_workers", "max_epochs", "max_steps"} and (
+                not isinstance(value, int) or isinstance(value, bool)
+            ):
+                raise ConfigError(f"exploratory override {name} must be an integer")
+            if name in {"device", "output", "run_id"} and not isinstance(value, str):
+                raise ConfigError(f"exploratory override {name} must be a string")
+            section, key = _EXPLORATORY_OVERRIDE_TARGETS[name]
+            document[section][key] = [value] if name == "seed" else value
     _reject_floats_and_tbd(document)
     _validate_shape(document)
     _validate_semantics(document)

@@ -11,7 +11,7 @@ logit slide aggregation. These are conservative preregistered starting values,
 not empirically established optima. Test access remains separately release-gated.
 
 Formal training requires one separately generated immutable preflight report. The
-`train --preflight-report` entry does not repeat the model/optimizer/spectral
+`formal-train --preflight-report` entry does not repeat the model/optimizer/spectral
 preflight; it verifies the report identity and recomputes the current Git release,
 configuration, source-manifest, and train/validation effective-split identities
 before the first batch.
@@ -43,3 +43,8 @@ This amendment becomes an active release only when the three allowlisted files,
 including its `docs/DECISIONS.md` record, are committed together and the annotated
 tag resolves exactly to that release commit. Until then it describes the approved
 publication design, not a published v3 release.
+
+Amendment, 2026-08-10: ADR 0011 adds a separate `exploratory_train` path and
+retires synthetic dry-run as an active workflow. Nothing in that path relaxes the
+formal release, preflight, hash, seed, epoch, checkpoint, provenance, or
+non-overwrite requirements recorded here.

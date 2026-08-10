@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import csv
 import hashlib
 import json
 import shutil
 import subprocess
 from pathlib import Path
 
+import numpy as np
 import pytest
+from PIL import Image
 
 import cg_pipeline.pipeline as pipeline_module
 from cg_pipeline.__main__ import main
@@ -14,7 +17,6 @@ from cg_pipeline.config import load_experiment_config
 from cg_pipeline.data import expected_batch_count, validate_manifest
 from cg_pipeline.pipeline import (
     Phase0BlockedError,
-    run_dry_run,
     run_formal_training,
     run_preflight,
 )
@@ -57,16 +59,39 @@ def _git(repository: Path, *args: str) -> str:
 
 
 def _synthetic_data(tmp_path: Path) -> Path:
-    config_path = tmp_path / "dry.toml"
-    config_path.write_text(
-        (REPOSITORY / "configs" / "phase0_dry_run.toml").read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    run_dry_run(config_path, workspace_root=tmp_path)
-    data_root = tmp_path / "artifacts" / "phase0_dry_run_v1" / "synthetic_package"
+    data_root = tmp_path / "synthetic_package"
+    rows = []
+    for split, label_name, label in (
+        ("train", "normal", 0),
+        ("train", "tumor", 1),
+        ("val", "normal", 0),
+        ("val", "tumor", 1),
+    ):
+        patch_id = f"fixture-{split}-{label_name}"
+        relative = f"patches/{split}/{label_name}/{patch_id}.png"
+        path = data_root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        Image.fromarray(np.full((256, 256, 3), label * 255, dtype=np.uint8), mode="RGB").save(
+            path, format="PNG"
+        )
+        rows.append(
+            {
+                "patch_id": patch_id,
+                "patch_path": relative,
+                "split": split,
+                "slide_id": f"slide-{split}-{label_name}",
+                "label": str(label),
+                "label_name": label_name,
+                "patch_label": label_name,
+                "slide_label": label_name,
+            }
+        )
     nested = data_root / "cam16_class_quota" / "metadata"
     nested.mkdir(parents=True)
-    shutil.copy2(data_root / "metadata" / "training_manifest.csv", nested)
+    with (nested / "training_manifest.csv").open("x", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
     return data_root
 
 
@@ -338,7 +363,7 @@ def test_preflight_rejects_changed_effective_train_identity(tmp_path: Path) -> N
     repository, config_path, release_path = _released_repository(tmp_path, data_root)
     manifest = data_root / "cam16_class_quota" / "metadata" / "training_manifest.csv"
     text = manifest.read_text(encoding="utf-8")
-    changed = text.replace("dry-train-normal", "dry-train-replaced", 1)
+    changed = text.replace("fixture-train-normal", "fixture-train-replaced", 1)
     assert changed != text
     manifest.write_text(changed, encoding="utf-8", newline="")
     release = json.loads(release_path.read_text(encoding="utf-8"))
@@ -375,7 +400,7 @@ def test_cli_and_api_report_same_release_id_failure(
 
     exit_code = main(
         [
-            "preflight",
+            "formal-preflight",
             "--config",
             str(config_path),
             "--data-root",
@@ -408,7 +433,7 @@ def test_cli_and_api_preflight_reports_have_consistent_contents(
 
     exit_code = main(
         [
-            "preflight",
+            "formal-preflight",
             "--config",
             str(config_path),
             "--data-root",
@@ -509,7 +534,7 @@ def test_train_cli_and_api_reject_same_tampered_report(
 
     exit_code = main(
         [
-            "train",
+            "formal-train",
             "--config",
             str(config_path),
             "--data-root",
@@ -622,7 +647,7 @@ def test_preflight_api_and_cli_reject_existing_release_bound_report_path(
         )
     exit_code = main(
         [
-            "preflight",
+            "formal-preflight",
             "--config",
             str(config_path),
             "--data-root",
@@ -662,7 +687,7 @@ def test_train_api_and_cli_reject_existing_formal_output(
         )
     exit_code = main(
         [
-            "train",
+            "formal-train",
             "--config",
             str(config_path),
             "--data-root",
@@ -721,7 +746,7 @@ def test_train_cli_and_api_consume_same_report_without_repeating_preflight(
 
     exit_code = main(
         [
-            "train",
+            "formal-train",
             "--config",
             str(config_path),
             "--data-root",

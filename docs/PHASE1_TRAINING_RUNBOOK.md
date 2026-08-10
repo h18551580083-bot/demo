@@ -103,7 +103,7 @@ separately approved config/release identity that includes the Release ID.
 ## 6. Run the standalone preflight exactly once
 
 ```bash
-python -m cg_pipeline preflight \
+python -m cg_pipeline formal-preflight \
   --config configs/phase1_baseline.toml \
   --data-root "$DATA_ROOT" \
   --release configs/phase1_training_release_b32_v3.json \
@@ -130,7 +130,7 @@ shows `status = PASS`, `blocking_gates = []`, `training_started = false`, and
 ## 7. Start formal training by consuming that report
 
 ```bash
-python -m cg_pipeline train \
+python -m cg_pipeline formal-train \
   --config configs/phase1_baseline.toml \
   --data-root "$DATA_ROOT" \
   --release configs/phase1_training_release_b32_v3.json \
@@ -149,7 +149,7 @@ Do not use `--resume` for a new run. After a genuine interruption, resume only i
 the same exact checkout with the same report and identities:
 
 ```bash
-python -m cg_pipeline train \
+python -m cg_pipeline formal-train \
   --config configs/phase1_baseline.toml \
   --data-root "$DATA_ROOT" \
   --release configs/phase1_training_release_b32_v3.json \

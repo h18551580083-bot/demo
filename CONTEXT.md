@@ -193,6 +193,18 @@ The single machine-validated Phase 1 configuration frozen before formal training
 it is a reproducible starting point and not an empirically demonstrated optimum.
 _Avoid_: Optimal parameters, tuned baseline, implementation defaults
 
+**Exploratory training**:
+Real CAM16 train/validation execution for profiling, performance optimization, and
+non-formal engineering experiments. It may use controlled runtime overrides and a
+dirty source tree, but its artifacts are permanently non-formal.
+_Avoid_: Dry run, formal evidence, release candidate result
+
+**Formal training**:
+Release-bound CAM16 train/validation execution that consumes the standalone formal
+preflight report and preserves the frozen seeds, epochs, checkpoint selection,
+provenance, and immutable output contract.
+_Avoid_: Exploratory training, ad hoc training, test evaluation
+
 **Final-once test gate**:
 A separate human authorization that binds the already frozen configuration, code,
 data, checkpoint, and validation thresholds before any test prediction ledger is

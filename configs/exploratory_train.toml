@@ -1,16 +1,16 @@
 schema_version = "phase0-experiment-config-v1"
 
 [execution]
-kind = "dry_run"
-run_id = "phase0-synthetic-dry-run-v1"
+kind = "exploratory_train"
+run_id = "exploratory-default"
 device = "cuda:0"
-output_root = "artifacts/phase0_dry_run_v1"
-max_steps = 1
+output_root = "artifacts/exploratory_runs/exploratory-default"
+max_steps = 0
 allow_test = false
 
 [data]
 contract_id = "cam16-existing-patch-v1"
-manifest_relpath = "metadata/training_manifest.csv"
+manifest_relpath = "cam16_class_quota/metadata/training_manifest.csv"
 identity_level = "slide_id"
 identity_column = "slide_id"
 sample_id_column = "patch_id"
@@ -53,7 +53,7 @@ epsilon = "0.00000001"
 weight_decay = "0.0001"
 scheduler = "none"
 batch_size = 32
-max_epochs = 20
+max_epochs = 1
 early_stopping_patience = 5
 early_stopping_min_delta = "0"
 checkpoint_metric = "val_slide_auroc"
@@ -61,7 +61,7 @@ checkpoint_tie_break = "earliest_epoch"
 checkpoint_save = "every-complete-epoch-immutable"
 class_imbalance = "uniform-unweighted"
 gradient_clip = "none"
-seeds = [1729, 3407, 7919]
+seeds = [1729]
 sampler = "hash-order-once-per-epoch"
 num_workers = 0
 failed_run_policy = "exclude-and-report-no-auto-retry"

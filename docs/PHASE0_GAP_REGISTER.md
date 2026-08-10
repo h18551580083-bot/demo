@@ -4,6 +4,10 @@ Audit baseline: Git `693b7c3`, 2026-08-03. Final disposition is based on the cur
 working tree and the explicit autonomous closure authorization in the attached
 task, not on deleted historical code.
 
+Scope note (2026-08-10): dry-run entries below are historical Phase 0 evidence, not
+current workflow entry points. Formal release/hash/fail-closed clauses apply only
+to `formal_train`, not to `exploratory_train` startup.
+
 | ID | Problem | Initial state | Normative source | Code/evidence source | Phase 0 blocker | Decision and files | Verification | Final result |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | P0-01 | No public experiment pipeline | missing | Spec 3, 4.1 | `cg_pipeline.pipeline` | yes | One preflight/dry/train seam | entrypoint tests and dry report | resolved |
