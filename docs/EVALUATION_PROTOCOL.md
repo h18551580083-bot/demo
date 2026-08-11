@@ -86,5 +86,5 @@ set test access true. It is loaded from a strict immutable JSON authorization pl
 a separate approval-evidence artifact; both hashes are rechecked when evaluation
 starts. Frozen threshold numbers are recomputed into their validation identity,
 and the bootstrap seed must equal the recorded run seed. Once published, the
-`configs/phase1_training_release_b32_v3.json` release keeps test access false, so no
+`configs/phase1_training_release_b32_workers8_v1.json` release keeps test access false, so no
 test ledger may be created under it. The historical Phase 0 release remains unchanged.

@@ -22,8 +22,8 @@ from cg_pipeline.pipeline import (
 )
 
 REPOSITORY = Path(__file__).resolve().parents[1]
-RELEASE_ID = "phase1-training-b32-v3"
-RELEASE_PATH = "configs/phase1_training_release_b32_v3.json"
+RELEASE_ID = "phase1-training-b32-workers8-v1"
+RELEASE_PATH = "configs/phase1_training_release_b32_workers8_v1.json"
 RELEASE_COMMIT_ALLOWED_PATHS = [
     RELEASE_PATH,
     "docs/DECISIONS.md",
@@ -108,7 +108,7 @@ def _release_document(
     return {
         "schema": "phase1-training-release-v2",
         "release_id": RELEASE_ID,
-        "supersedes_release_id": "phase1-training-b32-v2",
+        "supersedes_release_id": "phase1-training-b32-v3",
         "phase0_release_tag": "phase0-closed-v1",
         "release_id_role": "release-governance-identity",
         "annotated_tag": RELEASE_ID,

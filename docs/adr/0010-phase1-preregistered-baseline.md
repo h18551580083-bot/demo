@@ -44,6 +44,15 @@ including its `docs/DECISIONS.md` record, are committed together and the annotat
 tag resolves exactly to that release commit. Until then it describes the approved
 publication design, not a published v3 release.
 
+Amendment, 2026-08-11: the approved engineering revision fixes formal and
+exploratory DataLoader `num_workers` at `8`. The resulting normalized formal config
+hash is `sha256:a0beda02cd93de04c596f36929ba5aa05c51940e0d82d11297058dc5860666a5`.
+Release governance identity `phase1-training-b32-workers8-v1` supersedes v3 while
+the Run ID remains `phase1-cam16-baseline-b32-v2`. Its release commit is restricted
+to `configs/phase1_training_release_b32_workers8_v1.json`, `docs/DECISIONS.md`, and
+`docs/PHASE1_TRAINING_RUNBOOK.md`; it becomes published only when an annotated tag
+with the approved identity peels to that exact commit.
+
 Amendment, 2026-08-10: ADR 0011 adds a separate `exploratory_train` path and
 retires synthetic dry-run as an active workflow. Nothing in that path relaxes the
 formal release, preflight, hash, seed, epoch, checkpoint, provenance, or

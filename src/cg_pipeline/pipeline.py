@@ -113,10 +113,10 @@ class Phase0BlockedError(RuntimeError):
 
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-_APPROVED_RELEASE_ID = "phase1-training-b32-v3"
-_APPROVED_RELEASE_TAG = "phase1-training-b32-v3"
+_APPROVED_RELEASE_ID = "phase1-training-b32-workers8-v1"
+_APPROVED_RELEASE_TAG = "phase1-training-b32-workers8-v1"
 _RELEASE_COMMIT_ALLOWED_PATHS = (
-    "configs/phase1_training_release_b32_v3.json",
+    "configs/phase1_training_release_b32_workers8_v1.json",
     "docs/DECISIONS.md",
     "docs/PHASE1_TRAINING_RUNBOOK.md",
 )
@@ -353,9 +353,9 @@ def _validate_release_record(
             "release record schema is not phase1-training-release-v2"
         )
     if value["release_id"] != _APPROVED_RELEASE_ID:
-        raise Phase0BlockedError("release_id does not match phase1-training-b32-v3")
-    if value["supersedes_release_id"] != "phase1-training-b32-v2":
-        raise Phase0BlockedError("release does not supersede the approved v2 release")
+        raise Phase0BlockedError("release_id does not match the approved release identity")
+    if value["supersedes_release_id"] != "phase1-training-b32-v3":
+        raise Phase0BlockedError("release does not supersede the approved v3 release")
     if value["phase0_release_tag"] != "phase0-closed-v1":
         raise Phase0BlockedError("training release must bind phase0-closed-v1")
     for key in ("config_hash", "normalized_config_sha256", "source_manifest_sha256"):

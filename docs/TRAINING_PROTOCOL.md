@@ -10,9 +10,9 @@ fail before model construction.
 
 The active batch-32 training configuration is `phase1-cam16-baseline-b32-v2`.
 Once its exact three-file release commit and annotated tag are present, it is
-released under governance identity `phase1-training-b32-v3` by
-`configs/phase1_training_release_b32_v3.json`. Its normalized configuration hash
-is `sha256:e44768d80d7c1545138d7d5e1368de4ed53b7b07b71202e2c5bdee6efac7cf3b`.
+released under governance identity `phase1-training-b32-workers8-v1` by
+`configs/phase1_training_release_b32_workers8_v1.json`. Its normalized configuration
+hash is `sha256:a0beda02cd93de04c596f36929ba5aa05c51940e0d82d11297058dc5860666a5`.
 It supersedes the batch-4 configuration hash
 `sha256:0653ae0003dac9062b73749e879a9a541a3f9dae18b034bdc1632f8410910e75`;
 the historical Phase 0 release and `phase0-closed-v1` tag remain immutable.
@@ -67,7 +67,8 @@ final-once authorization.
 The global epoch order is keyed by seed, zero-based epoch, and exact UTF-8
 `patch_id` under domain `cg/cam16-train-order/v1`. DataLoader batching and worker
 sharding cannot drop, pad, repeat, or reorder membership. Worker seeds are derived
-and recorded. `num_workers = 0` is the preregistered baseline.
+and recorded. Formal and default exploratory execution fix `num_workers = 8` as an
+explicit engineering configuration; it is not selected or tuned at runtime.
 
 For the approved manifest, train has 79,570 rows and therefore 2,487 optimizer
 updates per complete epoch: `ceil(79570 / 32)`. The maximum 20-epoch budget is
@@ -119,12 +120,12 @@ export PYTHONPATH="$PWD/src"
 python -m cg_pipeline formal-preflight \
   --config configs/phase1_baseline.toml \
   --data-root "$DATA_ROOT" \
-  --release configs/phase1_training_release_b32_v3.json \
-  --output artifacts/preflight/phase1-training-b32-v3/preflight.json
+  --release configs/phase1_training_release_b32_workers8_v1.json \
+  --output artifacts/preflight/phase1-training-b32-workers8-v1/preflight.json
 
 python -m cg_pipeline formal-train \
   --config configs/phase1_baseline.toml \
   --data-root "$DATA_ROOT" \
-  --release configs/phase1_training_release_b32_v3.json \
-  --preflight-report artifacts/preflight/phase1-training-b32-v3/preflight.json
+  --release configs/phase1_training_release_b32_workers8_v1.json \
+  --preflight-report artifacts/preflight/phase1-training-b32-workers8-v1/preflight.json
 ```

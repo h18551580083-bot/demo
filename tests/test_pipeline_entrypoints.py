@@ -64,10 +64,14 @@ def test_repository_formal_and_exploratory_configs_are_machine_validated() -> No
     assert formal.execution["allow_test"] is exploratory.execution["allow_test"] is False
     assert formal.training["seeds"] == (1729, 3407, 7919)
     assert exploratory.training["seeds"] == (1729,)
+    assert formal.training["num_workers"] == exploratory.training["num_workers"] == 8
     assert formal.sha256 == (
+        "sha256:a0beda02cd93de04c596f36929ba5aa05c51940e0d82d11297058dc5860666a5"
+    )
+    assert historical_release["config_hash"] == (
         "sha256:e44768d80d7c1545138d7d5e1368de4ed53b7b07b71202e2c5bdee6efac7cf3b"
     )
-    assert historical_release["config_hash"] == formal.sha256
+    assert historical_release["config_hash"] != formal.sha256
 
 
 def test_exploratory_training_uses_only_lightweight_checks_and_records_overrides(

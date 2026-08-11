@@ -13,8 +13,8 @@ from cg_pipeline.data import build_dataloader, expected_batch_count
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 CONFIG_PATH = REPOSITORY / "configs" / "phase1_baseline.toml"
-RELEASE_PATH = REPOSITORY / "configs" / "phase1_training_release_b32_v3.json"
-RELEASE_ID = "phase1-training-b32-v3"
+RELEASE_PATH = REPOSITORY / "configs" / "phase1_training_release_b32_workers8_v1.json"
+RELEASE_ID = "phase1-training-b32-workers8-v1"
 SOURCE_MANIFEST_SHA256 = (
     "sha256:23c681a3a338e4df96c2e3443b39349c4758e08009eb47d46928d148f62045ab"
 )
@@ -25,7 +25,7 @@ VAL_EFFECTIVE_SHA256 = (
     "sha256:1a6fd51cb6d7ae5da920f06974a871deef2f21147f0df9c4d2c902d30ed3decc"
 )
 RELEASE_COMMIT_ALLOWED_PATHS = [
-    "configs/phase1_training_release_b32_v3.json",
+    "configs/phase1_training_release_b32_workers8_v1.json",
     "docs/DECISIONS.md",
     "docs/PHASE1_TRAINING_RUNBOOK.md",
 ]
@@ -55,14 +55,16 @@ class _CountingDataset:
         return {"patch_id": self.rows[index].patch_id}
 
 
-def _loader_integrity(row_count: int, prefix: str, batch_size: int) -> dict[str, Any]:
+def _loader_integrity(
+    row_count: int, prefix: str, batch_size: int, num_workers: int
+) -> dict[str, Any]:
     dataset = _CountingDataset(row_count, prefix)
     loader = build_dataloader(
         dataset,  # type: ignore[arg-type]
         batch_size=batch_size,
         seed=1729,
         epoch=0,
-        num_workers=0,
+        num_workers=num_workers,
     )
     observed = [patch_id for batch in loader for patch_id in batch["patch_id"]]
     expected = {row.patch_id for row in dataset.rows}
@@ -80,8 +82,11 @@ def audit() -> dict[str, Any]:
     config = load_experiment_config(CONFIG_PATH)
     release = json.loads(RELEASE_PATH.read_text(encoding="utf-8"))
     batch_size = int(config.training["batch_size"])
-    train_integrity = _loader_integrity(79_570, "train", batch_size)
-    validation_integrity = _loader_integrity(18_171, "validation", batch_size)
+    num_workers = int(config.training["num_workers"])
+    train_integrity = _loader_integrity(79_570, "train", batch_size, num_workers)
+    validation_integrity = _loader_integrity(
+        18_171, "validation", batch_size, num_workers
+    )
     checks = {
         "release_schema_v2": release["schema"] == "phase1-training-release-v2",
         "release_id": release["release_id"] == RELEASE_ID,
@@ -110,6 +115,7 @@ def audit() -> dict[str, Any]:
         == "unchanged-training-config-identity"
         and release["release_id_role"] == "release-governance-identity",
         "batch_size_32": batch_size == 32 and release["batch_size"] == 32,
+        "num_workers_8": num_workers == 8,
         "drop_last_false": train_integrity["drop_last"] is False
         and validation_integrity["drop_last"] is False
         and release["drop_last"] is False,

@@ -87,14 +87,14 @@ git diff --check
 python -m cg_pipeline formal-preflight `
   --config configs\phase1_baseline.toml `
   --data-root cam16_patch `
-  --release configs\phase1_training_release_b32_v3.json `
-  --output artifacts\preflight\phase1-training-b32-v3\preflight.json
+  --release configs\phase1_training_release_b32_workers8_v1.json `
+  --output artifacts\preflight\phase1-training-b32-workers8-v1\preflight.json
 
 python -m cg_pipeline formal-train `
   --config configs\phase1_baseline.toml `
   --data-root cam16_patch `
-  --release configs\phase1_training_release_b32_v3.json `
-  --preflight-report artifacts\preflight\phase1-training-b32-v3\preflight.json
+  --release configs\phase1_training_release_b32_workers8_v1.json `
+  --preflight-report artifacts\preflight\phase1-training-b32-workers8-v1\preflight.json
 ```
 
 The exploratory configuration is non-formal. The formal configuration is a
@@ -127,8 +127,8 @@ $env:PYTHONPATH = 'E:\cg\src'
 python -m cg_pipeline formal-train `
   --config configs\phase1_baseline.toml `
   --data-root cam16_patch `
-  --release configs\phase1_training_release_b32_v3.json `
-  --preflight-report artifacts\preflight\phase1-training-b32-v3\preflight.json
+  --release configs\phase1_training_release_b32_workers8_v1.json `
+  --preflight-report artifacts\preflight\phase1-training-b32-workers8-v1\preflight.json
 ```
 
 Training never loads the test split. Test evaluation requires a later, separate
