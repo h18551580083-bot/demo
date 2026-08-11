@@ -1,0 +1,40 @@
+{
+  "schema": "phase1-training-release-v2",
+  "release_id": "phase1-training-b32-workers8-v1",
+  "supersedes_release_id": "phase1-training-b32-v3",
+  "phase0_release_tag": "phase0-closed-v1",
+  "release_id_role": "release-governance-identity",
+  "annotated_tag": "phase1-training-b32-workers8-v1",
+  "formal_code_commit": "340796d4c8fe8916ad7b1d916486207dc4ffd649",
+  "release_commit_allowed_paths": [
+    "configs/phase1_training_release_b32_workers8_v1.json",
+    "docs/DECISIONS.md",
+    "docs/PHASE1_TRAINING_RUNBOOK.md"
+  ],
+  "config_hash": "sha256:a0beda02cd93de04c596f36929ba5aa05c51940e0d82d11297058dc5860666a5",
+  "normalized_config_sha256": "sha256:a0beda02cd93de04c596f36929ba5aa05c51940e0d82d11297058dc5860666a5",
+  "run_id": "phase1-cam16-baseline-b32-v2",
+  "run_id_role": "unchanged-training-config-identity",
+  "manifest_relpath": "cam16_class_quota/metadata/training_manifest.csv",
+  "manifest_hash_algorithm": "sha256",
+  "source_manifest_hash_rule": "raw-file-bytes-v1",
+  "effective_split_hash_rule": "cg/cam16-eval-manifest/v1",
+  "source_manifest_sha256": "sha256:23c681a3a338e4df96c2e3443b39349c4758e08009eb47d46928d148f62045ab",
+  "effective_split_hashes": {
+    "train": "sha256:8c54e7f8b1674e4e94c9a46e0d9abf01e4c0c8a88605e7831b2701c0ddbe58c5",
+    "val": "sha256:1a6fd51cb6d7ae5da920f06974a871deef2f21147f0df9c4d2c902d30ed3decc"
+  },
+  "batch_size": 32,
+  "drop_last": false,
+  "expected_train_rows": 79570,
+  "expected_train_batch_count": 2487,
+  "maximum_optimizer_updates": 49740,
+  "expected_validation_rows": 18171,
+  "expected_validation_batch_count": 568,
+  "phase0_closed": true,
+  "formal_training_authorized": true,
+  "external_blockers": [],
+  "patient_level_isolation": "not_evaluated",
+  "patient_level_claim_allowed": false,
+  "test_access_authorized": false
+}

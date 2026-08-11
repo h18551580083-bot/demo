@@ -1705,3 +1705,36 @@ Unchanged formal and scientific contracts:
 - No dataset split, final-once test rule, isolation claim, fixed optical frontend,
   Morlet definition, spatial-pyramid numerical rule, formal metric, checkpoint
   winner rule, formal seed, provenance rule, or project phase changes.
+
+## 2026-08-11 — Approve workers8 Phase 1 release identity
+
+Human approval and engineering scope:
+
+- The approved release-governance identity is
+  `phase1-training-b32-workers8-v1`, superseding
+  `phase1-training-b32-v3`. Historical v2/v3 release records and tags remain
+  immutable.
+- Formal and default exploratory DataLoader execution explicitly use
+  `num_workers = 8`. This is a fixed engineering configuration, not runtime or
+  hardware-dependent automatic tuning.
+- The normalized formal config hash is
+  `sha256:a0beda02cd93de04c596f36929ba5aa05c51940e0d82d11297058dc5860666a5`.
+  Batch size 32, optimizer, learning rate, epoch budget, early stopping, seeds,
+  data splits, model, fixed optical frontend, and evaluation protocol are
+  unchanged.
+
+Release topology:
+
+- The formal code commit is
+  `340796d4c8fe8916ad7b1d916486207dc4ffd649`.
+- The release commit has that commit as its sole parent and is restricted to
+  `configs/phase1_training_release_b32_workers8_v1.json`,
+  `docs/DECISIONS.md`, and `docs/PHASE1_TRAINING_RUNBOOK.md`.
+- The Run ID remains `phase1-cam16-baseline-b32-v2`. Test access remains false,
+  patient-level isolation remains `not_evaluated`, and no test effective-split
+  identity is computed or frozen.
+- This commit prepares the approved release identity but does not publish it. The
+  release becomes published only after separate authorization creates an annotated
+  `phase1-training-b32-workers8-v1` tag peeling exactly to the release commit.
+  No training, test evaluation, benchmark, or phase transition is authorized by
+  this decision.

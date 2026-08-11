@@ -1,16 +1,16 @@
-# RTX 4090 formal CAM16 training runbook — release v3
+# RTX 4090 formal CAM16 training runbook — workers8 v1
 
 ## 1. Authorization boundary
 
 This runbook applies only to the annotated release tag
-`phase1-training-b32-v3`. It authorizes the already frozen CAM16 train/validation
+`phase1-training-b32-workers8-v1`. It authorizes the already frozen CAM16 train/validation
 entry on an RTX 4090; it does not itself start training.
 
-- Release ID/tag: `phase1-training-b32-v3` (release-governance identity).
+- Release ID/tag: `phase1-training-b32-workers8-v1` (release-governance identity).
 - Run ID: `phase1-cam16-baseline-b32-v2` (unchanged training-config identity).
-- Formal code commit: `e50cc7e0aa16655f132b9cd321bb5a26b41f76bc`.
+- Formal code commit: `340796d4c8fe8916ad7b1d916486207dc4ffd649`.
 - Config SHA-256:
-  `sha256:e44768d80d7c1545138d7d5e1368de4ed53b7b07b71202e2c5bdee6efac7cf3b`.
+  `sha256:a0beda02cd93de04c596f36929ba5aa05c51940e0d82d11297058dc5860666a5`.
 - Test access remains false. Do not enumerate, hash, load, or evaluate the test
   effective split. Patient-level isolation remains `not_evaluated`.
 
@@ -26,7 +26,7 @@ From the repository root:
 set -euo pipefail
 export PYTHONPATH="$PWD/src"
 export DATA_ROOT="/absolute/path/to/approved/cam16_patch"
-export RELEASE_ID="phase1-training-b32-v3"
+export RELEASE_ID="phase1-training-b32-workers8-v1"
 export RUN_ID="phase1-cam16-baseline-b32-v2"
 export PREFLIGHT_REPORT="artifacts/preflight/${RELEASE_ID}/preflight.json"
 export FORMAL_OUTPUT="artifacts/formal_runs/${RUN_ID}"
@@ -39,16 +39,16 @@ different manifest or data package.
 ## 3. Verify Git and release topology
 
 ```bash
-git checkout --detach phase1-training-b32-v3
-test "$(git cat-file -t phase1-training-b32-v3)" = "tag"
-test "$(git rev-parse 'phase1-training-b32-v3^{}')" = "$(git rev-parse HEAD)"
+git checkout --detach phase1-training-b32-workers8-v1
+test "$(git cat-file -t phase1-training-b32-workers8-v1)" = "tag"
+test "$(git rev-parse 'phase1-training-b32-workers8-v1^{}')" = "$(git rev-parse HEAD)"
 test "$(git rev-list --parents -n 1 HEAD | wc -w)" -eq 2
-test "$(git rev-parse HEAD^)" = "e50cc7e0aa16655f132b9cd321bb5a26b41f76bc"
+test "$(git rev-parse HEAD^)" = "340796d4c8fe8916ad7b1d916486207dc4ffd649"
 test -z "$(git status --porcelain)"
 
 git diff-tree --no-commit-id --name-only --no-renames -r HEAD^ HEAD > /tmp/release-paths.txt
 printf '%s\n' \
-  configs/phase1_training_release_b32_v3.json \
+  configs/phase1_training_release_b32_workers8_v1.json \
   docs/DECISIONS.md \
   docs/PHASE1_TRAINING_RUNBOOK.md > /tmp/approved-release-paths.txt
 diff -u /tmp/approved-release-paths.txt /tmp/release-paths.txt
@@ -88,7 +88,7 @@ read-only and does not access CAM16 data or start training.
 
 ## 5. Confirm clean artifact destinations
 
-The unchanged Run ID may be used only when neither the v3 preflight report nor the
+The unchanged Run ID may be used only when neither the workers8 preflight report nor the
 formal output exists:
 
 ```bash
@@ -106,7 +106,7 @@ separately approved config/release identity that includes the Release ID.
 python -m cg_pipeline formal-preflight \
   --config configs/phase1_baseline.toml \
   --data-root "$DATA_ROOT" \
-  --release configs/phase1_training_release_b32_v3.json \
+  --release configs/phase1_training_release_b32_workers8_v1.json \
   --output "$PREFLIGHT_REPORT"
 ```
 
@@ -133,7 +133,7 @@ shows `status = PASS`, `blocking_gates = []`, `training_started = false`, and
 python -m cg_pipeline formal-train \
   --config configs/phase1_baseline.toml \
   --data-root "$DATA_ROOT" \
-  --release configs/phase1_training_release_b32_v3.json \
+  --release configs/phase1_training_release_b32_workers8_v1.json \
   --preflight-report "$PREFLIGHT_REPORT"
 ```
 
@@ -152,7 +152,7 @@ the same exact checkout with the same report and identities:
 python -m cg_pipeline formal-train \
   --config configs/phase1_baseline.toml \
   --data-root "$DATA_ROOT" \
-  --release configs/phase1_training_release_b32_v3.json \
+  --release configs/phase1_training_release_b32_workers8_v1.json \
   --preflight-report "$PREFLIGHT_REPORT" \
   --resume
 ```
