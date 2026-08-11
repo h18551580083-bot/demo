@@ -162,7 +162,7 @@ _EXACT_VALUES: dict[tuple[str, str], Any] = {
     ("training", "gradient_clip"): "none",
     ("training", "seeds"): [1729, 3407, 7919],
     ("training", "sampler"): "hash-order-once-per-epoch",
-    ("training", "num_workers"): 0,
+    ("training", "num_workers"): 8,
     ("training", "checkpoint_save"): "every-complete-epoch-immutable",
     ("training", "failed_run_policy"): "exclude-and-report-no-auto-retry",
     ("training", "multi_seed_aggregation"): "mean-sd-and-individual",

@@ -80,6 +80,25 @@ def test_support_aligned_pooling_shape_counts_zero_variance_and_backward() -> No
     assert torch.isfinite(features.grad).all()
 
 
+def test_support_aligned_pooling_batch_32_forward_and_backward() -> None:
+    torch.manual_seed(29)
+    feature_values = torch.rand((32, 1, 1, 1, 110, 110), dtype=torch.float32, requires_grad=True)
+    features = feature_values.expand(-1, 4, 8, 7, -1, -1)
+    valid = _valid_mask().expand(32, -1, -1, -1)
+    neighborhood = torch.zeros_like(valid)
+    neighborhood[..., 53:57, 53:57] = True
+
+    output = SupportAlignedPool()(features, valid, neighborhood)
+
+    assert output.statistics_float64.shape == (32, 4, 8, 7, 21, 2)
+    assert output.pool_float32.shape == (32, 4, 8, 7, 21, 2)
+    assert output.pool_float32.dtype == torch.float32
+    assert torch.isfinite(output.pool_float32).all()
+    output.pool_float32.sum().backward()
+    assert feature_values.grad is not None
+    assert torch.isfinite(feature_values.grad).all()
+
+
 def test_pooling_rejects_bad_geometry_subset_empty_and_nonfinite() -> None:
     pool = SupportAlignedPool()
     features = torch.zeros((1, 4, 8, 7, 110, 110), dtype=torch.float32)

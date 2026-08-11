@@ -76,7 +76,7 @@ class_imbalance = "uniform-unweighted"
 gradient_clip = "none"
 seeds = [1729]
 sampler = "hash-order-once-per-epoch"
-num_workers = 0
+num_workers = 8
 failed_run_policy = "exclude-and-report-no-auto-retry"
 multi_seed_aggregation = "mean-sd-and-individual"
 output_layout = "run-seed-epoch-v1"
@@ -123,6 +123,7 @@ def test_config_is_strict_normalized_and_hashed(tmp_path: Path) -> None:
     assert config.execution_kind == "exploratory_train"
     assert config.data["identity_level"] == "slide_id"
     assert config.training["batch_size"] == 32
+    assert config.training["num_workers"] == 8
     assert config.training["seeds"] == (1729,)
     assert config.normalized_bytes == canonical_json_bytes(config.as_dict())
     assert config.sha256 == "sha256:" + hashlib.sha256(config.normalized_bytes).hexdigest()
@@ -223,12 +224,21 @@ def test_exploratory_engineering_overrides_are_typed_and_hashed(tmp_path: Path) 
     assert config.execution["output_root"] == "artifacts/exploratory_runs/profile-41"
 
 
-def test_formal_config_keeps_engineering_fields_exact_locked(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        ("batch_size = 32", "batch_size = 8"),
+        ("num_workers = 8", "num_workers = 0"),
+    ],
+)
+def test_formal_config_keeps_engineering_fields_exact_locked(
+    tmp_path: Path, old: str, new: str
+) -> None:
     source = (Path(__file__).resolve().parents[1] / "configs" / "phase1_baseline.toml").read_text(
         encoding="utf-8"
     )
     path = tmp_path / "formal.toml"
-    path.write_text(source.replace("batch_size = 32", "batch_size = 8"), encoding="utf-8")
+    path.write_text(source.replace(old, new), encoding="utf-8")
 
     with pytest.raises(ConfigError, match="locked contract"):
         load_experiment_config(path)
