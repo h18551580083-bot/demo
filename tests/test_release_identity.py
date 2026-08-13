@@ -243,6 +243,39 @@ def test_preflight_accepts_exact_two_commit_release_identity(tmp_path: Path) -> 
     assert "test" not in report["manifest_identity"]["effective_split_hashes"]
 
 
+def test_preflight_blocks_fixed_frontend_when_morlet_identity_audit_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    data_root = _synthetic_data(tmp_path)
+    repository, config_path, release_path = _released_repository(tmp_path, data_root)
+    report_path = _report_path(repository)
+    monkeypatch.setattr(
+        pipeline_module,
+        "audit_morlet_identity",
+        lambda *args, **kwargs: {
+            "status": "FAIL",
+            "identity_variant": "unapproved",
+            "parameter_identity_pass": True,
+            "bitwise_identity_pass": False,
+            "numerical_validation_pass": True,
+            "spectral_coverage_pass": True,
+        },
+    )
+
+    report = run_preflight(
+        config_path,
+        data_root=data_root,
+        release_path=release_path,
+        output_path=report_path,
+    )
+
+    assert report["status"] == "FAIL"
+    assert "fixed_frontend" in report["blocking_gates"]
+    assert "fixed_frontend" not in report["passed_gates"]
+    assert "morlet_spectral_coverage" in report["passed_gates"]
+
+
 def test_train_rejects_tampered_preflight_report_before_training(tmp_path: Path) -> None:
     data_root = _synthetic_data(tmp_path)
     repository, config_path, release_path = _released_repository(tmp_path, data_root)

@@ -34,7 +34,11 @@ from .evaluation import (
 )
 from .identity import raw_sha256
 from .model import FixedHEClassifier
-from .morlet import generate_morlet_bundle, validate_spectral_coverage
+from .morlet import (
+    audit_morlet_identity,
+    generate_morlet_bundle,
+    validate_spectral_coverage,
+)
 from .training import (
     aggregate_seed_results,
     audit_optimizer_ownership,
@@ -124,6 +128,7 @@ _PREFLIGHT_REPORT_FIELDS = frozenset(PreflightReport.__required_keys__)
 _PREFLIGHT_INTERNAL_EVIDENCE_FIELDS = frozenset(
     {
         "fixed_frontend_identity",
+        "morlet_identity_audit",
         "morlet_spectral_coverage",
         "optimizer_ownership",
         "determinism",
@@ -605,8 +610,25 @@ def _perform_preflight(
         device = torch.device("cpu")
     model = FixedHEClassifier(frontend_backend=str(config.model["frontend_backend"])).to(device)
     fixed_identity = model.frontend.fixed_state_identity()
-    passed.append("fixed_frontend")
-    spectral_coverage = validate_spectral_coverage(generate_morlet_bundle())
+    morlet_bundle = generate_morlet_bundle()
+    spectral_coverage = validate_spectral_coverage(morlet_bundle)
+    identity_audit = audit_morlet_identity(
+        morlet_bundle,
+        spectral_coverage=spectral_coverage,
+    )
+    fixed_identity_matches_audit = all(
+        (
+            fixed_identity.get("morlet_parameter_hash") == morlet_bundle.parameter_hash,
+            fixed_identity.get("canonical_kernel_hash")
+            == morlet_bundle.canonical_kernel_hash,
+            fixed_identity.get("spatial_execution_hash")
+            == morlet_bundle.spatial_execution_hash,
+        )
+    )
+    if identity_audit["status"] == "PASS" and fixed_identity_matches_audit:
+        passed.append("fixed_frontend")
+    else:
+        blocked.append("fixed_frontend")
     if spectral_coverage["status"] == "PASS":
         passed.append("morlet_spectral_coverage")
     else:
@@ -662,6 +684,7 @@ def _perform_preflight(
         **isolation_claim_fields(),
         "patient_mapping": mapping_evidence,
         "fixed_frontend_identity": fixed_identity,
+        "morlet_identity_audit": identity_audit,
         "morlet_spectral_coverage": spectral_coverage,
         "optimizer_ownership": ownership,
         "determinism": seed_audit,

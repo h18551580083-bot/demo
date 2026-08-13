@@ -1738,3 +1738,27 @@ Release topology:
   `phase1-training-b32-workers8-v1` tag peeling exactly to the release commit.
   No training, test evaluation, benchmark, or phase transition is authorized by
   this decision.
+
+## 2026-08-13 — Allow two verified Morlet platform bitwise identities
+
+The locked Morlet parameter identity remains
+`sha256:020c5bd67ba9ae5f234cc750ef4781de7c7ed6eb96991a5ce5e3868697598127`
+on Windows and Linux. Verified Linux NumPy/CPU floating-point generation produces
+different canonical and spatial bitwise hashes from the legacy identity while the
+existing complex128/complex64 zero-DC and unit-energy thresholds, beta-reference
+threshold, and spectral-coverage gate all pass.
+
+The fixed frontend therefore accepts exactly these complete canonical/spatial pairs:
+
+- legacy: `sha256:ec3a1c8dbec0a455e0b8bfdf159bc749cd926184403b83cc4e56f22e9884ba4c`
+  with `sha256:d89eee57ee11284646dd32ace899c3b7d31b2790c468cf59a2b5ed84cde96c19`;
+- Linux verified: `sha256:70951b110526ec4c1a525d7a76f2586ab9fe448f0e61bbc55c4361cdd95af224`
+  with `sha256:12fe62cff9036ecd3936958ffb968125af8c0c063bba935cebf54957ac21a0d5`.
+
+This is a restricted cross-platform identity waiver, not removal of fixed optical
+frontend identity verification. Any third identity, mixed pair, parameter-hash
+change, numerical-threshold failure, or spectral failure remains fail-closed. This
+decision does not claim that formal training has proved AUC or accuracy to be
+unaffected. It does not authorize training, test access, release publication, or a
+phase transition; the next formal release identity remains `TBD` pending separate
+human approval.

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TypedDict
 
 import numpy as np
 
@@ -19,6 +19,94 @@ class MorletBundle:
     canonical_kernel_hash: str
     spatial_execution_hash: str
     validation: dict[str, tuple[float, ...]]
+
+
+LOCKED_MORLET_PARAMETER_HASH = (
+    "sha256:020c5bd67ba9ae5f234cc750ef4781de7c7ed6eb96991a5ce5e3868697598127"
+)
+APPROVED_MORLET_BITWISE_IDENTITIES = {
+    "legacy": (
+        "sha256:ec3a1c8dbec0a455e0b8bfdf159bc749cd926184403b83cc4e56f22e9884ba4c",
+        "sha256:d89eee57ee11284646dd32ace899c3b7d31b2790c468cf59a2b5ed84cde96c19",
+    ),
+    "linux_verified": (
+        "sha256:70951b110526ec4c1a525d7a76f2586ab9fe448f0e61bbc55c4361cdd95af224",
+        "sha256:12fe62cff9036ecd3936958ffb968125af8c0c063bba935cebf54957ac21a0d5",
+    ),
+}
+
+
+class MorletIdentityAudit(TypedDict):
+    status: str
+    identity_variant: str
+    parameter_identity_pass: bool
+    bitwise_identity_pass: bool
+    numerical_validation_pass: bool
+    spectral_coverage_pass: bool
+
+
+def _validation_within(
+    validation: dict[str, tuple[float, ...]], key: str, threshold: float
+) -> bool:
+    try:
+        values = np.asarray(validation[key], dtype=np.float64)
+    except (KeyError, TypeError, ValueError):
+        return False
+    return bool(
+        values.size
+        and np.isfinite(values).all()
+        and np.min(values) >= 0.0
+        and np.max(values) <= threshold
+    )
+
+
+def audit_morlet_identity(
+    bundle: MorletBundle,
+    *,
+    spectral_coverage: dict[str, Any] | None = None,
+) -> MorletIdentityAudit:
+    """Audit the locked parameters, approved bitwise pair, and numerical gates."""
+
+    observed_pair = (bundle.canonical_kernel_hash, bundle.spatial_execution_hash)
+    identity_variant = next(
+        (
+            variant
+            for variant, approved_pair in APPROVED_MORLET_BITWISE_IDENTITIES.items()
+            if observed_pair == approved_pair
+        ),
+        "unapproved",
+    )
+    parameter_identity_pass = bundle.parameter_hash == LOCKED_MORLET_PARAMETER_HASH
+    bitwise_identity_pass = identity_variant != "unapproved"
+    numerical_validation_pass = all(
+        (
+            _validation_within(bundle.validation, "complex128_zero_dc_error", 1e-12),
+            _validation_within(bundle.validation, "complex128_unit_energy_error", 1e-12),
+            _validation_within(bundle.validation, "complex64_zero_dc_error", 1e-6),
+            _validation_within(bundle.validation, "complex64_unit_energy_error", 1e-6),
+            _validation_within(bundle.validation, "beta_reference_error", 1e-2),
+        )
+    )
+    coverage = (
+        validate_spectral_coverage(bundle) if spectral_coverage is None else spectral_coverage
+    )
+    spectral_coverage_pass = coverage.get("status") == "PASS"
+    passed = all(
+        (
+            parameter_identity_pass,
+            bitwise_identity_pass,
+            numerical_validation_pass,
+            spectral_coverage_pass,
+        )
+    )
+    return {
+        "status": "PASS" if passed else "FAIL",
+        "identity_variant": identity_variant,
+        "parameter_identity_pass": parameter_identity_pass,
+        "bitwise_identity_pass": bitwise_identity_pass,
+        "numerical_validation_pass": numerical_validation_pass,
+        "spectral_coverage_pass": spectral_coverage_pass,
+    }
 
 
 def _theta_name(index: int) -> str:
