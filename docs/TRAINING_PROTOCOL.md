@@ -3,19 +3,14 @@
 ## Authority and claim
 
 The executable source of formal parameters is
-`configs/phase1_baseline.toml`, schema `phase0-experiment-config-v1`. The normalized
-RFC 8785-subset JSON bytes and their SHA-256 are written before a formal run.
-Unknown fields, missing fields, TOML floating values, illegal values, and `TBD`
-fail before model construction.
+`configs/phase1_baseline.toml`, schema `phase0-experiment-config-v1`. Unknown fields,
+missing fields, TOML floating values, illegal values, and `TBD` fail before model
+construction. The config is not hashed or authenticated as a frozen identity.
 
 The active batch-32 training configuration is `phase1-cam16-baseline-b32-v2`.
-Once its exact three-file release commit and annotated tag are present, it is
-released under governance identity `phase1-training-b32-workers8-v1` by
-`configs/phase1_training_release_b32_workers8_v1.json`. Its normalized configuration
-hash is `sha256:a0beda02cd93de04c596f36929ba5aa05c51940e0d82d11297058dc5860666a5`.
-It supersedes the batch-4 configuration hash
-`sha256:0653ae0003dac9062b73749e879a9a541a3f9dae18b034bdc1632f8410910e75`;
-the historical Phase 0 release and `phase0-closed-v1` tag remain immutable.
+`configs/formal_training_authorization.json` is a lightweight
+formal-training authorization record. Historical release and tag evidence remains
+historical and is not a startup gate.
 
 This is the preregistered Phase 1 starting baseline. It is intentionally simple
 and reproducible; it is not claimed to be optimal or validated by CAM16 training.
@@ -32,12 +27,12 @@ size, worker count, device, epoch count, and step count. Every exploratory artif
 `formal_experiment = false` and `experiment_mode = exploratory_train`; it cannot be
 promoted or renamed as formal evidence.
 
-`formal_train` retains the frozen contract below. It requires the approved annotated
-release, clean tree, exact release/config/source/manifest identities, standalone
-formal preflight, fixed seeds, complete epochs, validation checkpoint selection,
-immutable outputs, and formal provenance. The exploratory path does not relax any
-formal gate. Test access remains prohibited for both modes pending separate
-final-once authorization.
+`formal_train` retains the experiment contract below. It requires lightweight human
+authorization, a passing standalone preflight, legal train/validation data and
+isolation, CUDA, fixed frontend and Morlet checks, optimizer ownership, fixed seeds,
+complete epochs, validation checkpoint selection, immutable outputs, and provenance.
+Git state, tags, commit paths, code identity, and config identity are not gates. Test
+access remains prohibited for both modes pending separate final-once authorization.
 
 ## Frozen optimization contract
 
@@ -62,7 +57,7 @@ final-once authorization.
 | Seeds | `1729`, `3407`, `7919` |
 | Failed run | record and exclude; no automatic retry or replacement seed |
 | Multi-seed report | every valid seed, arithmetic mean, and sample standard deviation |
-| Resume | explicit `--resume`; exact release/preflight/config/code/data/kernel/seed identity and latest complete epoch only |
+| Resume | explicit `--resume`; continuous checkpoint/report pairs and matching data, fixed frontend, model, optimizer, seed, and epoch state |
 
 The global epoch order is keyed by seed, zero-based epoch, and exact UTF-8
 `patch_id` under domain `cg/cam16-train-order/v1`. DataLoader batching and worker
@@ -93,23 +88,22 @@ precision, and the fixed-front-end byte identity before and after the step.
 ## Output and interruption contract
 
 The formal layout is `output_root/seed-<seed>/epoch-<zero-padded>.{pt,json}` plus
-the normalized config and final summary. Existing files are never overwritten.
-Resume first verifies the normalized config and release/preflight identities, then requires a continuous
-zero-based sequence of immutable `.pt`/`.json` pairs. It loads only the latest pair
-after exact config, code revision/code, source/effective manifest, complete fixed-
-frontend, model-state checkpoint, seed, and epoch identity validation. A partial,
-gapped, or mismatched history fails; it is not repaired. The paired report binds
+the final summary. Existing files are never overwritten. Resume requires a continuous
+zero-based sequence of `.pt`/`.json` pairs. It loads only the latest pair after
+source/effective manifest, complete fixed-frontend, model-state checkpoint, optimizer,
+seed, and epoch validation. A partial, gapped, or mismatched history fails; it is not
+repaired. The paired report binds
 the checkpoint-file hash, and restore recomputes the electronic model, optimizer,
 and canonical fixed-front-end identities. Test rows are not loaded by training or
 validation.
 
-The entry requires one standalone preflight report created from the published v3
-release. `formal-train --preflight-report` verifies the exact report schema and canonical
-hash, then recomputes current
-HEAD/tag/release/config/source-manifest and train/validation effective identities;
-it also rechecks the frozen governance fields, while `created_at` remains audit-only
-and has no expiry gate. It does not repeat the full model/optimizer/spectral
-preflight. A patient mapping or mapping-approval file is not an input or
+The entry requires one standalone preflight report. `formal-train --preflight-report`
+checks that it is readable, passed, has no blocking gates, did not start training,
+and did not access test. It revalidates the current authorization, CUDA availability,
+manifest, train/validation files, and split isolation without attaching a checksum,
+signature, fixed path, Git state, code identity, or config identity. It does not
+repeat the full model/optimizer/spectral preflight. A patient mapping or
+mapping-approval file is not an input or
 prerequisite. Every preflight and training report records
 `group_id/slide_id split isolation verified`,
 `patient_level_isolation = not_evaluated`, and
@@ -120,12 +114,12 @@ export PYTHONPATH="$PWD/src"
 python -m cg_pipeline formal-preflight \
   --config configs/phase1_baseline.toml \
   --data-root "$DATA_ROOT" \
-  --release configs/phase1_training_release_b32_workers8_v1.json \
+  --authorization configs/formal_training_authorization.json \
   --output artifacts/preflight/phase1-training-b32-workers8-v1/preflight.json
 
 python -m cg_pipeline formal-train \
   --config configs/phase1_baseline.toml \
   --data-root "$DATA_ROOT" \
-  --release configs/phase1_training_release_b32_workers8_v1.json \
+  --authorization configs/formal_training_authorization.json \
   --preflight-report artifacts/preflight/phase1-training-b32-workers8-v1/preflight.json
 ```

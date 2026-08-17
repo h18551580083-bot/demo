@@ -200,13 +200,12 @@ dirty source tree, but its artifacts are permanently non-formal.
 _Avoid_: Dry run, formal evidence, release candidate result
 
 **Formal training**:
-Release-bound CAM16 train/validation execution that consumes the standalone formal
-preflight report and preserves the frozen seeds, epochs, checkpoint selection,
+Authorized CAM16 train/validation execution that consumes a passing standalone
+formal preflight report and preserves the fixed seeds, epochs, checkpoint selection,
 provenance, and immutable output contract.
 _Avoid_: Exploratory training, ad hoc training, test evaluation
 
 **Final-once test gate**:
-A separate human authorization that binds the already frozen configuration, code,
-data, checkpoint, and validation thresholds before any test prediction ledger is
-created.
+A separate human authorization that binds the approved data, checkpoint, and
+validation thresholds before any test prediction ledger is created.
 _Avoid_: Automatic test evaluation, validation gate, repeated test access

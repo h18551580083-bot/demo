@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -13,8 +12,6 @@ try:
     import tomllib
 except ModuleNotFoundError:  # pragma: no cover - exercised on supported Python 3.10
     import tomli as tomllib
-
-from .identity import canonical_json_bytes
 
 
 class ConfigError(ValueError):
@@ -193,7 +190,6 @@ _EXECUTION_PROFILES: dict[str, dict[str, Any]] = {
         "output_root": "artifacts/exploratory_runs/exploratory-default",
         "max_steps": 0,
         "allow_test": False,
-        "manifest_relpath": "cam16_class_quota/metadata/training_manifest.csv",
     },
     "formal_train": {
         "run_id": "phase1-cam16-baseline-b32-v2",
@@ -201,7 +197,6 @@ _EXECUTION_PROFILES: dict[str, dict[str, Any]] = {
         "output_root": "artifacts/formal_runs/phase1-cam16-baseline-b32-v2",
         "max_steps": 0,
         "allow_test": False,
-        "manifest_relpath": "cam16_class_quota/metadata/training_manifest.csv",
     },
 }
 
@@ -301,23 +296,32 @@ def _validate_semantics(document: dict[str, Any]) -> None:
         locked_execution_fields = ("run_id", "device", "output_root", "max_steps", "allow_test")
     for key in locked_execution_fields:
         if execution[key] != profile[key]:
-            raise ConfigError(f"execution.{key} conflicts with the locked {execution['kind']} profile")
-    if document["data"]["manifest_relpath"] != profile["manifest_relpath"]:
-        raise ConfigError("data.manifest_relpath conflicts with the locked execution profile")
+            raise ConfigError(
+                f"execution.{key} conflicts with the locked {execution['kind']} profile"
+            )
+    manifest_path = PurePosixPath(str(document["data"]["manifest_relpath"]))
+    if manifest_path.is_absolute() or any(part in {"", ".", ".."} for part in manifest_path.parts):
+        raise ConfigError("data.manifest_relpath must be a normalized relative path")
     mapping_evidence = document["data"]["patient_mapping_evidence"]
     if mapping_evidence != "not_available":
         raise ConfigError("patient mapping evidence must remain not_available for CAM16 Phase 1")
     for (section, key), expected in _EXACT_VALUES.items():
-        if execution["kind"] == "exploratory_train" and (
-            section,
-            key,
-        ) in _EXPLORATORY_UNLOCKED_EXACT_FIELDS:
+        if (
+            execution["kind"] == "exploratory_train"
+            and (
+                section,
+                key,
+            )
+            in _EXPLORATORY_UNLOCKED_EXACT_FIELDS
+        ):
             continue
         if document[section][key] != expected:
             raise ConfigError(f"{section}.{key} conflicts with the locked contract")
     if execution["kind"] == "exploratory_train":
         if not execution["run_id"] or execution["run_id"] != execution["run_id"].strip():
-            raise ConfigError("exploratory execution.run_id must be nonempty without outer whitespace")
+            raise ConfigError(
+                "exploratory execution.run_id must be nonempty without outer whitespace"
+            )
         device = execution["device"]
         valid_device = isinstance(device, str) and (
             device == "cpu"
@@ -402,12 +406,10 @@ def _thaw(value: Any) -> Any:
 
 @dataclass(frozen=True)
 class ExperimentConfig:
-    """Immutable validated configuration with one normalized identity."""
+    """Immutable validated training configuration."""
 
     _document: Mapping[str, Any]
     source: Path
-    normalized_bytes: bytes
-    sha256: str
 
     @property
     def schema_version(self) -> str:
@@ -474,6 +476,4 @@ def load_experiment_config(
     _reject_floats_and_tbd(document)
     _validate_shape(document)
     _validate_semantics(document)
-    normalized = canonical_json_bytes(document)
-    digest = "sha256:" + hashlib.sha256(normalized).hexdigest()
-    return ExperimentConfig(_freeze(document), source.resolve(), normalized, digest)
+    return ExperimentConfig(_freeze(document), source.resolve())

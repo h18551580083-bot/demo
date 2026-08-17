@@ -16,10 +16,10 @@ deployment code.
 - `python -m cg_pipeline exploratory-train`: real CAM16 train/validation for
   profiling, performance tuning, and other explicitly non-formal experiments.
 - `python -m cg_pipeline formal-preflight`: formal configuration, data, model, precision,
-  isolation, and release gates.
-- `python -m cg_pipeline formal-train`: the sole formal training entry; it consumes the
-  release-bound standalone preflight report, revalidates every live identity, and
-  starts no batch when any gate fails.
+  isolation, CUDA, and lightweight authorization gates.
+- `python -m cg_pipeline formal-train`: the sole formal training entry; it consumes a
+  passing standalone preflight report and revalidates current data, split, CUDA,
+  test-access, and authorization safety before preparation.
 
 ## Verification
 
@@ -56,8 +56,9 @@ to `artifacts/exploratory_runs/<run_id>/` and every report/checkpoint records
 `formal_experiment=false` and `experiment_mode=exploratory_train`. Exploratory
 results cannot be relabelled or automatically promoted to formal results.
 
-Formal training remains release-bound, hash-bound, preflight-gated, multi-seed,
-immutable, and non-overwriting. Both modes construct only train and validation
+Formal training remains authorization- and preflight-gated, multi-seed, immutable,
+and non-overwriting. Git state, tags, code identity, config identity, and report
+checksums are not startup gates. Both modes construct only train and validation
 datasets; neither CLI exposes test access.
 
 ```powershell
@@ -87,13 +88,13 @@ git diff --check
 python -m cg_pipeline formal-preflight `
   --config configs\phase1_baseline.toml `
   --data-root cam16_patch `
-  --release configs\phase1_training_release_b32_workers8_v1.json `
+  --authorization configs\formal_training_authorization.json `
   --output artifacts\preflight\phase1-training-b32-workers8-v1\preflight.json
 
 python -m cg_pipeline formal-train `
   --config configs\phase1_baseline.toml `
   --data-root cam16_patch `
-  --release configs\phase1_training_release_b32_workers8_v1.json `
+  --authorization configs\formal_training_authorization.json `
   --preflight-report artifacts\preflight\phase1-training-b32-workers8-v1\preflight.json
 ```
 
@@ -108,29 +109,25 @@ preflight inputs.
 
 ## Formal training entry
 
-Phase 0 is closed. Formal entry consumes one independently generated preflight
-report and rechecks its current code, release, config, and train/validation data
-identities before the first batch:
+Phase 0 is closed. Formal entry consumes one independently generated passing
+preflight report and rechecks current authorization, CUDA availability,
+train/validation files, and split isolation before the first batch. The JSON passed
+through `--authorization` is a lightweight authorization record.
 
-The v3 commands below become active only when the exact v3 release JSON exists in
-the three-file release commit, its decision is recorded, and the annotated v3 tag
-resolves to that commit. The validator enforces those conditions; before publication
-the prior release remains the repository's latest published evidence.
-
-The active formal identity is `phase1-cam16-baseline-b32-v2`, with batch size 32,
+The active formal run is `phase1-cam16-baseline-b32-v2`, with batch size 32,
 2,487 train updates per complete epoch, and at most 49,740 updates over 20 epochs.
-Run the controlled checklist in `docs/PHASE1_TRAINING_RUNBOOK.md`; do not reuse the
-historical unbound `configs/phase0_release.json` for this revised contract.
+Run the controlled checklist in `docs/PHASE1_TRAINING_RUNBOOK.md` with the current
+lightweight authorization record.
 
 ```powershell
 $env:PYTHONPATH = 'E:\cg\src'
 python -m cg_pipeline formal-train `
   --config configs\phase1_baseline.toml `
   --data-root cam16_patch `
-  --release configs\phase1_training_release_b32_workers8_v1.json `
+  --authorization configs\formal_training_authorization.json `
   --preflight-report artifacts\preflight\phase1-training-b32-workers8-v1\preflight.json
 ```
 
 Training never loads the test split. Test evaluation requires a later, separate
-final-once authorization that names the frozen config, data, checkpoint, and
-validation-threshold identities.
+final-once authorization that names the data, checkpoint, and validation-threshold
+identities.

@@ -39,15 +39,15 @@ def _parser() -> argparse.ArgumentParser:
     )
     preflight.add_argument("--config", type=Path, required=True)
     preflight.add_argument("--data-root", type=Path, required=True)
-    preflight.add_argument("--release", type=Path, required=True)
+    preflight.add_argument("--authorization", type=Path, required=True)
     preflight.add_argument("--output", type=Path, required=True)
 
     train = subparsers.add_parser(
-        "formal-train", help="run release-bound formal train/validation after preflight"
+        "formal-train", help="run authorized formal train/validation after preflight"
     )
     train.add_argument("--config", type=Path, required=True)
     train.add_argument("--data-root", type=Path, required=True)
-    train.add_argument("--release", type=Path, required=True)
+    train.add_argument("--authorization", type=Path, required=True)
     train.add_argument("--preflight-report", type=Path, required=True)
     train.add_argument("--resume", action="store_true")
     return parser
@@ -75,16 +75,18 @@ def main(argv: list[str] | None = None) -> int:
             report = run_preflight(
                 args.config,
                 data_root=args.data_root,
-                release_path=args.release,
+                authorization_path=args.authorization,
                 output_path=args.output,
             )
-            print(json.dumps({"status": report["status"], "blocking_gates": report["blocking_gates"]}))
+            print(
+                json.dumps({"status": report["status"], "blocking_gates": report["blocking_gates"]})
+            )
             return 0 if report["status"] == "PASS" else 1
         if args.command == "formal-train":
             report = run_formal_training(
                 args.config,
                 data_root=args.data_root,
-                release_path=args.release,
+                authorization_path=args.authorization,
                 preflight_report_path=args.preflight_report,
                 resume=args.resume,
             )

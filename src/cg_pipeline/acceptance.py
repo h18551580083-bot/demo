@@ -11,9 +11,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from .artifacts import write_json_exclusive
 from .claims import audit_isolation_claim_text
 from .config import load_experiment_config
-from .pipeline import _perform_preflight, _write_json_exclusive
+from .preflight import perform_preflight
 
 
 class AcceptanceError(ValueError):
@@ -21,6 +22,8 @@ class AcceptanceError(ValueError):
 
 
 _DECISION30_SHA256 = "fe0c0a3d704a2ae458e26e894ef82be0fddcdf13ad430ac5f483bf72b1836117"
+
+
 def _read_json(path: Path) -> dict[str, Any]:
     def pairs_hook(pairs):
         value: dict[str, Any] = {}
@@ -77,13 +80,9 @@ def audit_decision30_report(path: Path | str) -> dict[str, Any]:
 
 
 def audit_tracked_files(repository: Path | str) -> dict[str, Any]:
+    """Reject repository content that project policy forbids committing."""
     root = Path(repository).resolve()
-    result = subprocess.run(
-        ["git", "ls-files", "-z"],
-        cwd=root,
-        check=True,
-        capture_output=True,
-    )
+    result = subprocess.run(["git", "ls-files", "-z"], cwd=root, check=True, capture_output=True)
     paths = [item.decode("utf-8") for item in result.stdout.split(b"\x00") if item]
     forbidden_extensions = {
         ".png",
@@ -110,7 +109,9 @@ def audit_tracked_files(repository: Path | str) -> dict[str, Any]:
     return {"status": "PASS", "tracked_file_count": len(paths), "forbidden_count": 0}
 
 
-def _run_command(command: list[str], repository: Path, environment: dict[str, str]) -> dict[str, Any]:
+def _run_command(
+    command: list[str], repository: Path, environment: dict[str, str]
+) -> dict[str, Any]:
     result = subprocess.run(
         command,
         cwd=repository,
@@ -182,9 +183,7 @@ def _documentation_audit(repository: Path) -> dict[str, Any]:
         or "must not be inferred, defaulted, or selected" in blocking_section
     )
     return {
-        "status": (
-            "PASS" if not missing and not active_tbd and not forbidden_claims else "FAIL"
-        ),
+        "status": ("PASS" if not missing and not active_tbd and not forbidden_claims else "FAIL"),
         "required_document_count": len(required),
         "missing": missing,
         "active_blocking_tbd": active_tbd,
@@ -197,20 +196,20 @@ def run_phase0_acceptance(
     repository: Path | str,
     config_path: Path | str,
     data_root: Path | str,
-    release_path: Path | str,
+    authorization_path: Path | str,
     decision30_report_path: Path | str,
     output_path: Path | str,
 ) -> dict[str, Any]:
     root = Path(repository).resolve()
     config = load_experiment_config(config_path)
-    preflight, _ = _perform_preflight(
+    preflight, _ = perform_preflight(
         config,
         data_root=Path(data_root).resolve(),
-        release_path=Path(release_path).resolve(),
+        authorization_path=Path(authorization_path).resolve(),
     )
     decision30 = audit_decision30_report(decision30_report_path)
-    tracked = audit_tracked_files(root)
     tests = _test_evidence(root)
+    tracked = audit_tracked_files(root)
     documents = _documentation_audit(root)
     internal_preflight_failures = list(preflight["blocking_gates"])
     gates = [
@@ -225,7 +224,7 @@ def run_phase0_acceptance(
             "gate": "configuration_contract",
             "result": "PASS",
             "command": "python -m cg_pipeline formal-preflight ...",
-            "evidence": preflight["config_hash"],
+            "evidence": "configuration parsed and validated",
             "blocker": None,
         },
         {
@@ -297,19 +296,21 @@ def run_phase0_acceptance(
             "result": "PASS" if tests["status"] == tracked["status"] == "PASS" else "FAIL",
             "command": "pytest; compileall; ruff; git diff --check; git ls-files audit",
             "evidence": {"tests": tests, "tracked": tracked},
-            "blocker": None if tests["status"] == tracked["status"] == "PASS" else "verification failed",
+            "blocker": (
+                None if tests["status"] == tracked["status"] == "PASS" else "verification failed"
+            ),
         },
         {
-            "gate": "formal_training_release",
+            "gate": "formal_training_authorization",
             "result": (
-                "PASS" if "phase1_training_release" in preflight["passed_gates"] else "FAIL"
+                "PASS" if "formal_training_authorization" in preflight["passed_gates"] else "FAIL"
             ),
             "command": "python -m cg_pipeline formal-preflight ...",
-            "evidence": str(Path(release_path)),
+            "evidence": str(Path(authorization_path)),
             "blocker": (
                 None
-                if "phase1_training_release" in preflight["passed_gates"]
-                else "Phase 1 training release did not pass"
+                if "formal_training_authorization" in preflight["passed_gates"]
+                else "formal training authorization did not pass"
             ),
         },
     ]
@@ -324,13 +325,12 @@ def run_phase0_acceptance(
         "patient_level_isolation": preflight["patient_level_isolation"],
         "patient_level_claim_allowed": preflight["patient_level_claim_allowed"],
         "test_split_accessed": False,
-        "config_hash": config.sha256,
         "preflight": preflight,
         "gates": gates,
         "failed_gates": failed,
         "external_blockers": external_blockers,
     }
-    _write_json_exclusive(Path(output_path), report)
+    write_json_exclusive(Path(output_path), report)
     return report
 
 
@@ -339,7 +339,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--repository", type=Path, required=True)
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--data-root", type=Path, required=True)
-    parser.add_argument("--release", type=Path, required=True)
+    parser.add_argument("--authorization", type=Path, required=True)
     parser.add_argument("--decision30-report", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
@@ -348,7 +348,7 @@ def main(argv: list[str] | None = None) -> int:
             repository=args.repository,
             config_path=args.config,
             data_root=args.data_root,
-            release_path=args.release,
+            authorization_path=args.authorization,
             decision30_report_path=args.decision30_report,
             output_path=args.output,
         )

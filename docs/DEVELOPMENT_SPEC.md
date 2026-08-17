@@ -21,7 +21,7 @@ documentation must conform to it.
 **Current phase: Phase 1 entry — preregistered CAM16 baseline training**
 
 **Status: Phase 0 closed on 2026-08-03 after the total-acceptance gate passed.
-Formal CAM16 train/validation execution is release-authorized; final test access
+Formal CAM16 train/validation execution is explicitly authorized; final test access
 and transfer evaluation remain separately closed.**
 
 The purpose of this phase is to turn the approved research architecture into
@@ -41,39 +41,22 @@ Phase 0 did **not** itself authorize formal model training, test-set evaluation,
 transfer evaluation. Development may use `exploratory_train` with real CAM16
 train/validation data for profiling, engineering performance work, bounded-step
 checks, and explicitly non-formal experiments. Exploratory execution requires no
-release, tag, clean tree, or formal preflight; every artifact must state
+formal authorization or preflight; every artifact must state
 `formal_experiment=false` and `experiment_mode=exploratory_train`, and no result may
-be promoted or renamed as formal evidence. When the exact annotated
-`phase1-training-b32-workers8-v1` tag exists
-and resolves to its three-file release commit,
-`configs/phase1_training_release_b32_workers8_v1.json` binds the revised frozen Phase 1
-CAM16 train/validation baseline to its normalized configuration, approved source
-manifest, train/validation effective split identities, formal code commit, release
-commit, and annotated tag. One standalone preflight writes an identity-bound report;
-formal training consumes that report and recomputes current code, release, config,
-and train/validation data identities without repeating the full preflight. The
-historical `configs/phase0_release.json` and
-`phase0-closed-v1` tag remain unchanged. Final test and transfer evaluation remain
-prohibited.
-
-Before all of those publication objects exist together, the workers8 release is a
-release candidate and the preceding immutable release remains the latest published
-evidence. The validator fails closed across this transition; the release commit
-records the approval in `docs/DECISIONS.md`.
-
-The unchanged Run ID `phase1-cam16-baseline-b32-v2` is the training-configuration
-identity. `phase1-training-b32-workers8-v1` is a distinct release-governance identity and
-does not change the optimizer, data split, model, seed, or evaluation contract.
-Formal preflight computes no test effective-split identity, test access remains
-unauthorized, and patient-level isolation remains `not_evaluated`.
+be promoted or renamed as formal evidence. Formal training reads current parameters
+from `configs/phase1_baseline.toml` and a lightweight authorization record from
+`configs/formal_training_authorization.json`. The standalone preflight
+checks data availability and isolation, CUDA availability, the fixed frontend,
+Morlet numerical and spectral correctness, optimizer ownership, determinism, and
+disabled test access. Its report is not bound to Git, code, config, release, or path
+identity. Historical release and tag records remain historical evidence only.
 
 The only real CAM16 training modes are `exploratory_train` and `formal_train`.
 Both are restricted to train/validation and expose no test-access parameter.
 They share manifest readability, legal split, and supplied `group_id`/`slide_id`
-cross-split isolation checks. `formal_train` additionally retains every approved
-release, annotated-tag, clean-tree, source/config/manifest hash, formal-preflight,
-fixed-seed, complete-epoch, validation-checkpoint, immutable-output, and provenance
-gate. Exploratory configurability must never weaken those formal exact locks.
+cross-split isolation checks. `formal_train` additionally retains lightweight human
+authorization, CUDA, fixed-frontend/Morlet, optimizer, determinism, fixed-seed,
+complete-epoch, validation-checkpoint, immutable-output, and provenance gates.
 
 ## 3. Locked project scope
 
@@ -1060,9 +1043,9 @@ Configuration must be explicit rather than hidden in source code.
   cases, result identity, and the 2000-replicate stratified slide bootstrap interval
   are frozen in `docs/EVALUATION_PROTOCOL.md` and the unique effective
   configuration.
-- Test access requires a separate final-once authorization naming the frozen
-  config, code, data, checkpoint, and validation-threshold identities. The current
-  release record keeps test access false.
+- Test access requires a separate final-once authorization naming the data,
+  checkpoint, and validation-threshold identities. The current authorization record
+  keeps test access false.
 - CAM16 split evidence is limited to `group_id/slide_id split isolation verified`.
   Patient-level isolation is `not_evaluated`, patient-level claims are forbidden,
   and this non-applicable property is not a Phase 0 or formal-training blocker.

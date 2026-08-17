@@ -8,7 +8,6 @@ import pytest
 import torch
 
 from cg_pipeline.model import FixedHEClassifier
-from cg_pipeline.pipeline import _load_complete_epoch_history
 from cg_pipeline.training import (
     TrainingContractError,
     aggregate_seed_results,
@@ -22,6 +21,7 @@ from cg_pipeline.training import (
     save_checkpoint,
     train_one_step,
 )
+from cg_pipeline.training_runs import load_complete_epoch_history
 
 
 def _state_metadata(
@@ -111,7 +111,7 @@ def test_real_training_step_changes_only_backend_and_checkpoint_restores(tmp_pat
     metadata = _state_metadata(
         model,
         optimizer,
-        config_hash="sha256:" + "1" * 64,
+        source_manifest_sha256="sha256:" + "1" * 64,
         manifest_hash="sha256:" + "2" * 64,
         kernel_hash=fixed_before["canonical_kernel_hash"],
         seed=3407,
@@ -152,7 +152,7 @@ def test_checkpoint_identity_mismatch_fails_closed(tmp_path: Path) -> None:
         weight_decay="0.0001",
     )
     path = tmp_path / "checkpoint.pt"
-    metadata = _state_metadata(model, optimizer, config_hash="sha256:" + "a" * 64)
+    metadata = _state_metadata(model, optimizer, source_manifest_sha256="sha256:" + "a" * 64)
     save_checkpoint(path, model, optimizer, metadata)
 
     with pytest.raises(TrainingContractError, match="metadata identity mismatch"):
@@ -160,7 +160,7 @@ def test_checkpoint_identity_mismatch_fails_closed(tmp_path: Path) -> None:
             path,
             model,
             optimizer,
-            expected_metadata={**metadata, "config_hash": "sha256:" + "b" * 64},
+            expected_metadata={**metadata, "source_manifest_sha256": "sha256:" + "b" * 64},
         )
 
 
@@ -175,7 +175,7 @@ def test_checkpoint_cannot_replace_fixed_frontend_buffers(tmp_path: Path) -> Non
         weight_decay="0.0001",
     )
     original = tmp_path / "original.pt"
-    metadata = _state_metadata(model, optimizer, config_hash="sha256:" + "a" * 64)
+    metadata = _state_metadata(model, optimizer, source_manifest_sha256="sha256:" + "a" * 64)
     save_checkpoint(original, model, optimizer, metadata)
     payload = torch.load(original, map_location="cpu")
     fixed_key = next(key for key in payload["model_state"] if key.startswith("frontend."))
@@ -214,7 +214,7 @@ def test_checkpoint_rejects_tampered_electronic_and_optimizer_state(tmp_path: Pa
     )
     rgb = torch.full((1, 3, 110, 110), 255, dtype=torch.uint8)
     train_one_step(model, optimizer, rgb, torch.ones((1,), dtype=torch.float32))
-    metadata = _state_metadata(model, optimizer, config_hash="sha256:" + "a" * 64)
+    metadata = _state_metadata(model, optimizer, source_manifest_sha256="sha256:" + "a" * 64)
     original = tmp_path / "original.pt"
     save_checkpoint(original, model, optimizer, metadata)
     payload = torch.load(original, map_location="cpu")
@@ -267,7 +267,7 @@ def test_checkpoint_rejects_tampered_electronic_and_optimizer_state(tmp_path: Pa
 def test_resume_requires_continuous_checkpoint_report_pairs_and_exact_identities(
     tmp_path: Path,
 ) -> None:
-    base = {"seed": 1729, "config_hash": "sha256:" + "a" * 64}
+    base = {"seed": 1729, "source_manifest_sha256": "sha256:" + "a" * 64}
     checkpoint_identity = "sha256:" + "b" * 64
     optimizer_identity = "sha256:" + "c" * 64
     identities = {
@@ -285,26 +285,25 @@ def test_resume_requires_continuous_checkpoint_report_pairs_and_exact_identities
                 "epoch": 0,
                 "seed": 1729,
                 "checkpoint": "epoch-0000.pt",
-                "checkpoint_file_sha256": "sha256:"
-                + hashlib.sha256(checkpoint_bytes).hexdigest(),
+                "checkpoint_file_sha256": "sha256:" + hashlib.sha256(checkpoint_bytes).hexdigest(),
                 "identities": identities,
             }
         ),
         encoding="utf-8",
     )
 
-    history, latest, metadata = _load_complete_epoch_history(tmp_path, base)
+    history, latest, metadata = load_complete_epoch_history(tmp_path, base)
 
     assert len(history) == 1
     assert latest == tmp_path / "epoch-0000.pt"
     assert metadata == identities
     (tmp_path / "epoch-0000.pt").write_bytes(checkpoint_bytes + b"tampered")
-    with pytest.raises(ValueError, match="report identity"):
-        _load_complete_epoch_history(tmp_path, base)
+    with pytest.raises(ValueError, match="checkpoint/report pair"):
+        load_complete_epoch_history(tmp_path, base)
     (tmp_path / "epoch-0000.pt").write_bytes(checkpoint_bytes)
     (tmp_path / "epoch-0001.pt").write_bytes(b"partial")
     with pytest.raises(ValueError, match="checkpoint/report pair"):
-        _load_complete_epoch_history(tmp_path, base)
+        load_complete_epoch_history(tmp_path, base)
 
 
 def test_multi_seed_aggregation_excludes_failed_runs_and_reports_individuals() -> None:

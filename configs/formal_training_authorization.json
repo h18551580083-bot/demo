@@ -1,0 +1,8 @@
+{
+  "schema": "formal-training-authorization-v1",
+  "formal_training_authorized": true,
+  "external_blockers": [],
+  "patient_level_isolation": "not_evaluated",
+  "patient_level_claim_allowed": false,
+  "test_access_authorized": false
+}

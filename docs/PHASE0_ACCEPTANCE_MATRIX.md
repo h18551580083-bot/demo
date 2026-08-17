@@ -6,17 +6,15 @@ fail-closed acceptance, and an evidence artifact. Decision 30 formal RTX 4090
 acceptance remains separate from repository-wide Phase 0 closure.
 
 The 2026-08-04 Phase 1 batch-32 contract revision does not rewrite this historical
-Phase 0 acceptance. Once its three-file release commit and annotated tag are
-published, active training preflight consumes the hash-bound
-`configs/phase1_training_release_b32_workers8_v1.json`; its commands are in
-`docs/PHASE1_TRAINING_RUNBOOK.md`. Commands below remain the historical
+Phase 0 acceptance. Current training consumes the lightweight authorization record
+`configs/formal_training_authorization.json`; its commands are in
+`docs/PHASE1_TRAINING_RUNBOOK.md`. Commands below remain historical
 `phase0-closed-v1` evidence and are not current-checkout Phase 1 commands.
 
-Scope note (2026-08-10): this matrix remains immutable historical acceptance
-evidence. Its formal release/hash/fail-closed clauses constrain only
-`formal_train`; they are not startup conditions for `exploratory_train`. Historical
-dry-run commands and artifacts below document what was accepted then and are not
-available workflow entry points in the current CLI.
+Scope note: this matrix remains historical acceptance evidence. Its former formal
+release/hash clauses document the acceptance state at that date and are no longer
+startup conditions for either current training mode. Historical dry-run commands
+and artifacts below are not available workflow entry points in the current CLI.
 
 ## Deliverables
 
@@ -36,7 +34,7 @@ available workflow entry points in the current CLI.
 
 Summary: **11 complete, 0 blocked**. Patient-level isolation is outside the current
 CAM16 claim scope and is therefore `NOT APPLICABLE`, not a failed deliverable.
-Phase 0 is closed; formal CAM16 train/validation is release-authorized and final
+Phase 0 is closed; formal CAM16 train/validation is explicitly authorized and final
 test access remains false.
 
 ## Mandatory gate commands
@@ -55,14 +53,14 @@ python -m cg_pipeline dry-run `
 python -m cg_pipeline preflight `
   --config configs\phase1_baseline.toml `
   --data-root cam16_patch `
-  --release configs\phase0_release.json `
+  --authorization configs\formal_training_authorization.json `
   --output artifacts\phase0_preflight.json
 
 python -m cg_pipeline.acceptance `
   --repository . `
   --config configs\phase1_baseline.toml `
   --data-root cam16_patch `
-  --release configs\phase0_release.json `
+  --authorization configs\formal_training_authorization.json `
   --dry-report artifacts\phase0_dry_run_v1\report.json `
   --decision30-report artifacts\decision30_formal_acceptance_rtx4090_20260802.json `
   --output artifacts\phase0_total_acceptance.json
@@ -77,6 +75,6 @@ machine-readable isolation state is:
 - `patient_level_isolation` appears in `not_applicable_gates`, never in
   `blocking_gates`.
 
-A patient mapping or mapping-approval file is not a CAM16 Phase 1 release input.
+A patient mapping or mapping-approval file is not a CAM16 Phase 1 authorization input.
 Supplying, inferring, or parsing a patient identity cannot upgrade the current
 claim. Final test access remains separately prohibited until its final-once gate.

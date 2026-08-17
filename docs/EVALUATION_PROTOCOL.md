@@ -71,8 +71,8 @@ not patient-cluster uncertainty.
 
 Every evaluation first proves its prediction ledger is exactly equal to the
 authorized effective rows; a complete subset is still invalid. Every result records
-config, code, source/effective manifest, fixed frontend, checkpoint, seed,
-aggregation, threshold, count, and result identities. Floating
+source/effective manifest, fixed frontend, checkpoint, seed, aggregation, threshold,
+count, and result identities. Floating
 identity values use their exact IEEE-754 bits. Non-finite JSON, duplicate keys,
 negative-zero JSON numbers, and overwriting an existing report are prohibited.
 
@@ -81,10 +81,10 @@ negative-zero JSON numbers, and overwriting an existing report are prohibited.
 Training and checkpoint/threshold selection access train and validation only. Test
 cannot choose hyperparameters, threshold, epoch, checkpoint, structure, retry, or
 failure handling. A future final-once authorization must name the already frozen
-config, code, data, checkpoint, and validation-threshold identities and explicitly
+data, checkpoint, and validation-threshold identities and explicitly
 set test access true. It is loaded from a strict immutable JSON authorization plus
 a separate approval-evidence artifact; both hashes are rechecked when evaluation
 starts. Frozen threshold numbers are recomputed into their validation identity,
 and the bootstrap seed must equal the recorded run seed. Once published, the
-`configs/phase1_training_release_b32_workers8_v1.json` release keeps test access false, so no
-test ledger may be created under it. The historical Phase 0 release remains unchanged.
+current formal-training authorization keeps test access false, so no test ledger may
+be created under it. The historical Phase 0 release remains unchanged.

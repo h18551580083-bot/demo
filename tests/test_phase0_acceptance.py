@@ -11,7 +11,7 @@ from cg_pipeline.acceptance import (
     audit_isolation_claim_text,
     audit_tracked_files,
 )
-from cg_pipeline.pipeline import _write_json_exclusive
+from cg_pipeline.artifacts import write_json_exclusive
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 
@@ -51,12 +51,11 @@ def test_decision30_formal_report_hash_and_gate_are_audited() -> None:
 
 
 def test_decision30_tamper_and_forbidden_tracked_files_fail_closed(tmp_path: Path) -> None:
+    assert audit_tracked_files(REPOSITORY)["status"] == "PASS"
     tampered = tmp_path / "report.json"
     tampered.write_text("{}", encoding="utf-8")
     with pytest.raises(AcceptanceError, match="SHA-256"):
         audit_decision30_report(tampered)
-
-    assert audit_tracked_files(REPOSITORY)["status"] == "PASS"
 
 
 @pytest.mark.parametrize(
@@ -133,12 +132,10 @@ def test_every_markdown_protocol_and_generated_report_are_claim_audited(
     audit = _documentation_audit(tmp_path)
 
     assert audit["status"] == "FAIL"
-    assert audit["forbidden_patient_level_claims"] == [
-        "docs/extra-protocol-draft.md"
-    ]
+    assert audit["forbidden_patient_level_claims"] == ["docs/extra-protocol-draft.md"]
     output = tmp_path / "unsafe-report.json"
     with pytest.raises(ValueError, match="unsafe patient-level claim"):
-        _write_json_exclusive(
+        write_json_exclusive(
             output,
             {
                 "patient_level_isolation": "PASS",
@@ -162,7 +159,7 @@ def test_every_markdown_protocol_and_generated_report_are_claim_audited(
     ]
     for payload in unsafe_payloads:
         with pytest.raises(ValueError, match="unsafe patient-level claim"):
-            _write_json_exclusive(output, payload)
+            write_json_exclusive(output, payload)
         assert not output.exists()
 
 
@@ -170,9 +167,7 @@ def test_context_is_included_in_fail_closed_documentation_claim_audit(
     tmp_path: Path,
 ) -> None:
     _write_required_documentation(tmp_path)
-    (tmp_path / "CONTEXT.md").write_text(
-        "patient isolation has been verified\n", encoding="utf-8"
-    )
+    (tmp_path / "CONTEXT.md").write_text("patient isolation has been verified\n", encoding="utf-8")
 
     audit = _documentation_audit(tmp_path)
 

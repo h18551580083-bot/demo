@@ -2,21 +2,16 @@
 
 ## 1. Authorization boundary
 
-This runbook applies only to the annotated release tag
-`phase1-training-b32-workers8-v1`. It authorizes the already frozen CAM16 train/validation
-entry on an RTX 4090; it does not itself start training.
+This runbook authorizes the current CAM16 train/validation entry on an RTX 4090; it
+does not itself start training. The JSON passed through `--authorization` is a lightweight
+authorization record, not a Git, code, tag, commit, path, or config identity.
 
-- Release ID/tag: `phase1-training-b32-workers8-v1` (release-governance identity).
-- Run ID: `phase1-cam16-baseline-b32-v2` (unchanged training-config identity).
-- Formal code commit: `340796d4c8fe8916ad7b1d916486207dc4ffd649`.
-- Config SHA-256:
-  `sha256:a0beda02cd93de04c596f36929ba5aa05c51940e0d82d11297058dc5860666a5`.
+- Run ID: `phase1-cam16-baseline-b32-v2`.
 - Test access remains false. Do not enumerate, hash, load, or evaluate the test
   effective split. Patient-level isolation remains `not_evaluated`.
 
-Use a clean Linux cloud checkout with one RTX 4090. Do not run the formal command
-on the local development GPU. Dataset download or split modification is outside
-this runbook.
+Use a Linux cloud environment with one RTX 4090. Dataset download or split
+modification is outside this runbook.
 
 ## 2. Set paths without changing the contract
 
@@ -36,26 +31,12 @@ test -d "$DATA_ROOT"
 `DATA_ROOT` must already contain the approved package. Do not create aliases for a
 different manifest or data package.
 
-## 3. Verify Git and release topology
+## 3. Verify authorization
 
-```bash
-git checkout --detach phase1-training-b32-workers8-v1
-test "$(git cat-file -t phase1-training-b32-workers8-v1)" = "tag"
-test "$(git rev-parse 'phase1-training-b32-workers8-v1^{}')" = "$(git rev-parse HEAD)"
-test "$(git rev-list --parents -n 1 HEAD | wc -w)" -eq 2
-test "$(git rev-parse HEAD^)" = "340796d4c8fe8916ad7b1d916486207dc4ffd649"
-test -z "$(git status --porcelain)"
-
-git diff-tree --no-commit-id --name-only --no-renames -r HEAD^ HEAD > /tmp/release-paths.txt
-printf '%s\n' \
-  configs/phase1_training_release_b32_workers8_v1.json \
-  docs/DECISIONS.md \
-  docs/PHASE1_TRAINING_RUNBOOK.md > /tmp/approved-release-paths.txt
-diff -u /tmp/approved-release-paths.txt /tmp/release-paths.txt
-```
-
-Any failure stops the run. A lightweight tag, wrong parent, multiple parents,
-extra changed path, switched commit, or dirty tracked checkout is not acceptable.
+Confirm the authorization JSON is readable and retains
+`formal_training_authorized = true`, `test_access_authorized = false`, and no
+external blockers. Repository cleanliness, tags, commits, parents, and changed
+paths are not training gates.
 
 ## 4. Verify environment and static contract
 
@@ -76,15 +57,14 @@ print({
 })
 PY
 
-python tools/audit_phase1_training_contract.py
 python -m pytest tests -q
 python -m compileall -q src tests tools
 python -m ruff check .
 git diff --check
 ```
 
-The contract audit, tests, compile check, and Ruff must all pass. The audit is
-read-only and does not access CAM16 data or start training.
+The tests, compile check, and Ruff must all pass. These checks do not access CAM16
+test images or start training.
 
 ## 5. Confirm clean artifact destinations
 
@@ -97,8 +77,7 @@ test ! -e "$FORMAL_OUTPUT"
 ```
 
 Do not delete, rename, merge, or overwrite an earlier formal artifact to make these
-checks pass. Stop and preserve it. A different output directory requires a new,
-separately approved config/release identity that includes the Release ID.
+checks pass. Stop and preserve it.
 
 ## 6. Run the standalone preflight exactly once
 
@@ -106,22 +85,14 @@ separately approved config/release identity that includes the Release ID.
 python -m cg_pipeline formal-preflight \
   --config configs/phase1_baseline.toml \
   --data-root "$DATA_ROOT" \
-  --release configs/phase1_training_release_b32_workers8_v1.json \
+  --authorization configs/formal_training_authorization.json \
   --output "$PREFLIGHT_REPORT"
 ```
 
-The command exclusively creates the release-bound path. It recomputes and compares:
-
-- current HEAD, annotated tag, single parent, formal code commit, and whitelist;
-- Release ID and normalized config identity;
-- raw source-manifest SHA-256
-  `sha256:23c681a3a338e4df96c2e3443b39349c4758e08009eb47d46928d148f62045ab`;
-- train effective identity
-  `sha256:8c54e7f8b1674e4e94c9a46e0d9abf01e4c0c8a88605e7831b2701c0ddbe58c5`;
-- validation effective identity
-  `sha256:1a6fd51cb6d7ae5da920f06974a871deef2f21147f0df9c4d2c902d30ed3decc`;
-- fixed frontend, spectral, optimizer ownership, determinism, isolation, and disabled
-  test access gates.
+The command writes to the requested new path and checks current config parsing,
+train/validation manifest and patch existence, nonempty splits, isolation, CUDA,
+the fixed frontend, Morlet numerical/spectral correctness, optimizer ownership,
+determinism, authorization, and disabled test access.
 
 Do not compute a test effective hash. Confirm the command exits zero and the report
 shows `status = PASS`, `blocking_gates = []`, `training_started = false`, and
@@ -133,38 +104,38 @@ shows `status = PASS`, `blocking_gates = []`, `training_started = false`, and
 python -m cg_pipeline formal-train \
   --config configs/phase1_baseline.toml \
   --data-root "$DATA_ROOT" \
-  --release configs/phase1_training_release_b32_workers8_v1.json \
+  --authorization configs/formal_training_authorization.json \
   --preflight-report "$PREFLIGHT_REPORT"
 ```
 
 Training does not rerun the full standalone preflight. Before its first batch it
-revalidates the report schema/hash and the current HEAD/tag, release, config, source
-manifest, train/validation split, disk/isolation, and governance identities. Any
-change or injected field fails closed. `created_at` is retained only for audit and
-has no expiry rule.
+checks that the report is readable, passed, unblocked, did not start training, and
+did not access test. It revalidates current authorization, CUDA availability,
+train/validation files, and split isolation. Report path, extra fields, Git state,
+code identity, and config identity are not gates.
 
 ## 8. Interruption and resume
 
-Do not use `--resume` for a new run. After a genuine interruption, resume only in
-the same exact checkout with the same report and identities:
+Do not use `--resume` for a new run. After a genuine interruption, resume against
+the existing output:
 
 ```bash
 python -m cg_pipeline formal-train \
   --config configs/phase1_baseline.toml \
   --data-root "$DATA_ROOT" \
-  --release configs/phase1_training_release_b32_workers8_v1.json \
+  --authorization configs/formal_training_authorization.json \
   --preflight-report "$PREFLIGHT_REPORT" \
   --resume
 ```
 
-Resume requires the continuous immutable checkpoint/report history and exact
-config, code, release, preflight, source/effective manifest, fixed-frontend, model,
-optimizer, seed, and epoch identities. It never repairs or overwrites artifacts.
+Resume requires a continuous checkpoint/report history and matching
+source/effective manifest, fixed frontend, model, optimizer, seed, and epoch state.
+It never repairs or overwrites artifacts.
 
 ## 9. Stop conditions and claims
 
-Stop immediately on any nonzero command, identity mismatch, existing destination,
-non-4090 device, non-annotated tag, changed manifest/split, report corruption, or
+Stop immediately on any nonzero command, invalid authorization, existing destination,
+non-4090 device, changed manifest/split, unsafe report result, or
 resume discontinuity. Preserve the terminal output and artifacts for audit; do not
 retry by changing the contract.
 

@@ -5,17 +5,14 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-import platform
-import subprocess
-from collections.abc import Iterator, Mapping
-from contextlib import contextmanager
+from collections.abc import Mapping
 from dataclasses import dataclass, fields, is_dataclass
 from enum import Enum
 from pathlib import Path
 
 import torch
 
-from . import comparator, cpu_reference, device_operator
+from . import calibration_environment, comparator, cpu_reference, device_operator
 from .comparator import AuditContext, ComparisonReport, FormalObjectKind, Verdict
 from .fixture import (
     CalibrationFixture,
@@ -106,151 +103,6 @@ def _gradient_fixtures(batch: int) -> dict[str, torch.Tensor]:
         "std_only": std_only,
         "joint_signed": joint,
     }
-
-
-@contextmanager
-def _protected_device_environment(device: torch.device) -> Iterator[None]:
-    previous_deterministic = torch.are_deterministic_algorithms_enabled()
-    previous_matmul_tf32 = torch.backends.cuda.matmul.allow_tf32
-    previous_cudnn_tf32 = torch.backends.cudnn.allow_tf32
-    torch.use_deterministic_algorithms(True)
-    if device.type == "cuda":
-        torch.backends.cuda.matmul.allow_tf32 = False
-        torch.backends.cudnn.allow_tf32 = False
-    try:
-        with torch.autocast(device_type=device.type, enabled=False):
-            yield
-    finally:
-        torch.use_deterministic_algorithms(previous_deterministic)
-        if device.type == "cuda":
-            torch.backends.cuda.matmul.allow_tf32 = previous_matmul_tf32
-            torch.backends.cudnn.allow_tf32 = previous_cudnn_tf32
-
-
-def _nvidia_identity() -> dict[str, str]:
-    command = [
-        "nvidia-smi",
-        "--query-gpu=driver_version,uuid,name",
-        "--format=csv,noheader",
-    ]
-    try:
-        result = subprocess.run(
-            command,
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return {"driver_version": "unavailable", "gpu_uuid": "unavailable"}
-    fields = [field.strip() for field in result.stdout.splitlines()[0].split(",", maxsplit=2)]
-    return {"driver_version": fields[0], "gpu_uuid": fields[1]}
-
-
-def _device_identity(device: torch.device) -> dict[str, object]:
-    properties = torch.cuda.get_device_properties(device)
-    nvidia = _nvidia_identity()
-    zero32 = torch.tensor(0.0, dtype=torch.float32, device=device)
-    one32 = torch.tensor(1.0, dtype=torch.float32, device=device)
-    subnormal32 = torch.nextafter(zero32, one32)
-    zero64 = torch.tensor(0.0, dtype=torch.float64, device=device)
-    one64 = torch.tensor(1.0, dtype=torch.float64, device=device)
-    subnormal64 = torch.nextafter(zero64, one64)
-    uname = platform.uname()
-    return {
-        "device_type": device.type,
-        "device_index": device.index,
-        "gpu_name": properties.name,
-        "device_name": properties.name,
-        "gpu_uuid": nvidia["gpu_uuid"],
-        "driver_version": nvidia["driver_version"],
-        "compute_capability": f"{properties.major}.{properties.minor}",
-        "gpu_total_memory_bytes": properties.total_memory,
-        "torch_version": torch.__version__,
-        "cuda_runtime": torch.version.cuda,
-        "cudnn_version": torch.backends.cudnn.version(),
-        "cpu_identity": platform.processor(),
-        "cpu_logical_count": __import__("os").cpu_count(),
-        "python_version": platform.python_version(),
-        "python_implementation": platform.python_implementation(),
-        "system": uname.system,
-        "system_release": uname.release,
-        "system_version": uname.version,
-        "machine": uname.machine,
-        "node": uname.node,
-        "deterministic_algorithms": torch.are_deterministic_algorithms_enabled(),
-        "matmul_allow_tf32": torch.backends.cuda.matmul.allow_tf32,
-        "cudnn_allow_tf32": torch.backends.cudnn.allow_tf32,
-        "autocast_enabled": torch.is_autocast_enabled(),
-        "gradient_scaling_enabled": False,
-        "default_dtype": str(torch.get_default_dtype()),
-        "rounding_policy": "ieee754_round_to_nearest_ties_to_even",
-        "float32_subnormal_preserved": bool((subnormal32 * one32 == subnormal32).item()),
-        "float64_subnormal_preserved": bool((subnormal64 * one64 == subnormal64).item()),
-    }
-
-
-def _environment_pass(identity: Mapping[str, object]) -> bool:
-    return (
-        identity["device_type"] != "cpu"
-        and identity["deterministic_algorithms"] is True
-        and identity["matmul_allow_tf32"] is False
-        and identity["cudnn_allow_tf32"] is False
-        and identity["autocast_enabled"] is False
-        and identity["float32_subnormal_preserved"] is True
-        and identity["float64_subnormal_preserved"] is True
-    )
-
-
-def _required_formal_environment_keys() -> set[str]:
-    return {
-        "gpu_name",
-        "gpu_uuid",
-        "driver_version",
-        "torch_version",
-        "cuda_runtime",
-        "cudnn_version",
-        "cpu_identity",
-        "python_version",
-        "system",
-    }
-
-
-def _validate_scope(
-    mode: CalibrationMode,
-    fixture: CalibrationFixture,
-    expected_environment: Mapping[str, object] | None,
-) -> None:
-    if mode is CalibrationMode.LOCAL_SMOKE:
-        return
-    if not fixture.is_preregistered:
-        raise ValueError("formal_acceptance requires a pre-registered fixture")
-    missing = _required_formal_environment_keys() - set(expected_environment or {})
-    if missing:
-        raise ValueError(
-            "formal_acceptance expected_environment is missing: " + ", ".join(sorted(missing))
-        )
-    actual_hashes = fixture_input_hashes(fixture)
-    if dict(fixture.registered_input_hashes or {}) != actual_hashes:
-        raise ValueError("pre-registered fixture input hash mismatch")
-    if fixture.registered_formal_shape != tuple(fixture.z.shape):
-        raise ValueError("pre-registered fixture formal shape mismatch")
-
-
-def _validate_expected_environment(
-    mode: CalibrationMode,
-    expected: Mapping[str, object] | None,
-    actual: Mapping[str, object],
-) -> None:
-    if mode is CalibrationMode.LOCAL_SMOKE:
-        return
-    mismatches = {
-        key: (expected[key], actual.get(key))
-        for key in _required_formal_environment_keys()
-        if expected is not None and expected[key] != actual.get(key)
-    }
-    if mismatches:
-        raise ValueError(f"formal_acceptance environment identity mismatch: {mismatches}")
 
 
 def _audit_context(
@@ -407,7 +259,7 @@ def run_calibration_gate(
         width=11,
     )
     validate_fixture(selected_fixture)
-    _validate_scope(normalized_mode, selected_fixture, expected_environment)
+    calibration_environment.validate_scope(normalized_mode, selected_fixture, expected_environment)
     if output_path is not None and output_path.exists():
         raise FileExistsError(f"refusing to overwrite existing report: {output_path}")
     if device.type == "cpu":
@@ -433,14 +285,16 @@ def run_calibration_gate(
         for name, upstream in gradients.items()
     }
 
-    with _protected_device_environment(device):
+    with calibration_environment.protected_device_environment(device):
         device_hashes = {
             "z": tensor_sha256(selected_fixture.z.to(device)),
             "mask": tensor_sha256(selected_fixture.mask.to(device)),
             "valid_counts": tensor_sha256(selected_fixture.valid_counts.to(device)),
         }
-        identity = _device_identity(device)
-        _validate_expected_environment(normalized_mode, expected_environment, identity)
+        identity = calibration_environment.device_identity(device)
+        calibration_environment.validate_expected_environment(
+            normalized_mode, expected_environment, identity
+        )
         tested_device_id = f"{identity['gpu_name']}|{identity['gpu_uuid']}"
         forward_output = device_operator.pool(
             selected_fixture.z.to(device),
@@ -514,13 +368,12 @@ def run_calibration_gate(
         dict(report.audit.cpu_input_hashes) == dict(report.audit.device_input_hashes)
         for report in object_reports
     )
-    environment_pass = _environment_pass(identity)
+    environment_pass = calibration_environment.environment_pass(identity)
     zero_channel_cpu_std = cpu_statistics[:, 0, 0, 0, :, 1]
     zero_channel_device_std = forward_output.statistics_float64.to("cpu")[:, 0, 0, 0, :, 1]
     zero_variance_evidence = {
         "forward_std_exact_zero": bool(
-            torch.all(zero_channel_cpu_std == 0.0)
-            and torch.all(zero_channel_device_std == 0.0)
+            torch.all(zero_channel_cpu_std == 0.0) and torch.all(zero_channel_device_std == 0.0)
         ),
         "all_backward_results_finite": all(
             bool(torch.isfinite(cpu_dz[name]).all() and torch.isfinite(device_dz[name]).all())

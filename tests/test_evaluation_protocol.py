@@ -23,7 +23,6 @@ from cg_pipeline.evaluation import (
 )
 
 _HASH_A = "sha256:" + "a" * 64
-_HASH_B = "sha256:" + "b" * 64
 _HASH_C = "sha256:" + "c" * 64
 _HASH_D = "sha256:" + "d" * 64
 _HASH_E = "sha256:" + "e" * 64
@@ -33,7 +32,6 @@ def _frozen_thresholds(
     patch_threshold: float = 0.5, slide_threshold: float = 1.0
 ) -> FrozenThresholds:
     identity = _threshold_identity_values(
-        config_hash=_HASH_A,
         checkpoint_identity=_HASH_E,
         effective_manifest_sha256=_HASH_D,
         seed=1729,
@@ -43,7 +41,6 @@ def _frozen_thresholds(
     return FrozenThresholds(
         patch_threshold=patch_threshold,
         slide_threshold=slide_threshold,
-        config_hash=_HASH_A,
         checkpoint_identity=_HASH_E,
         effective_validation_manifest_sha256=_HASH_D,
         seed=1729,
@@ -51,9 +48,7 @@ def _frozen_thresholds(
     )
 
 
-def _context(
-    split: str = "val", *, test_authorization=None
-) -> EvaluationContext:
+def _context(split: str = "val", *, test_authorization=None) -> EvaluationContext:
     predictions = _predictions(split)
     return EvaluationContext(
         split=split,
@@ -67,8 +62,6 @@ def _context(
             )
             for row in predictions
         ),
-        config_hash=_HASH_A,
-        code_identity=_HASH_B,
         source_manifest_sha256=_HASH_C,
         effective_manifest_sha256=_HASH_D,
         fixed_frontend_identity={"canonical_kernel_hash": _HASH_A},
@@ -85,8 +78,6 @@ def _test_authorization(tmp_path: Path, thresholds: FrozenThresholds):
     document = {
         "schema": "cam16-final-test-authorization-v1",
         "test_access_authorized": True,
-        "config_hash": _HASH_A,
-        "code_identity": _HASH_B,
         "source_manifest_sha256": _HASH_C,
         "effective_test_manifest_sha256": _HASH_D,
         "checkpoint_identity": _HASH_E,
@@ -204,7 +195,6 @@ def test_prediction_ledger_requires_every_authorized_row_and_test_gate_is_identi
     mismatched = FrozenThresholds(
         patch_threshold=0.75,
         slide_threshold=thresholds.slide_threshold,
-        config_hash=thresholds.config_hash,
         checkpoint_identity=thresholds.checkpoint_identity,
         effective_validation_manifest_sha256=thresholds.effective_validation_manifest_sha256,
         seed=thresholds.seed,
@@ -237,6 +227,4 @@ def test_final_test_authorization_rechecks_independent_approval_artifact(tmp_pat
 
 def test_bootstrap_seed_must_equal_recorded_run_seed() -> None:
     with pytest.raises(EvaluationContractError, match="bootstrap seed"):
-        evaluate_predictions(
-            _predictions(), context=_context(), fit_thresholds=True, ci_seed=3407
-        )
+        evaluate_predictions(_predictions(), context=_context(), fit_thresholds=True, ci_seed=3407)

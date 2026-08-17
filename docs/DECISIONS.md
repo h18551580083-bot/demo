@@ -1762,3 +1762,21 @@ decision does not claim that formal training has proved AUC or accuracy to be
 unaffected. It does not authorize training, test access, release publication, or a
 phase transition; the next formal release identity remains `TBD` pending separate
 human approval.
+
+## 2026-08-17 — Simplify formal-training authorization and pipeline
+
+Human-approved governance change:
+
+- Formal training no longer depends on Git status, tags, commits, changed paths,
+  repository source identity, configuration hashes, release identity, or preflight
+  report identity. The configuration is the validated source of current training
+  parameters, and the release JSON is replaced by a lightweight authorization
+  record. Historical release and acceptance records remain historical evidence.
+- Formal preflight and training continue to enforce valid configuration and
+  execution kind, available CUDA, readable nonempty train/validation data, manifest
+  and patch existence, `group_id`/`slide_id` split isolation, test prohibition,
+  fixed optical and Morlet correctness, optimizer ownership, determinism, the
+  approved training budget, and complete checkpoint/resume state restoration.
+- This decision does not alter model structure, Morlet parameters, H/E separation,
+  pooling mathematics, optimizer or training hyperparameters. It authorizes no
+  training, test access, tag publication, release creation, or phase transition.
