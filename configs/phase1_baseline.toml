@@ -10,7 +10,7 @@ allow_test = false
 
 [data]
 contract_id = "cam16-existing-patch-v1"
-manifest_relpath = "cam16_class_quota/training_manifest.csv"
+manifest_relpath = "metadata/training_manifest.csv""
 identity_level = "slide_id"
 identity_column = "slide_id"
 sample_id_column = "patch_id"
