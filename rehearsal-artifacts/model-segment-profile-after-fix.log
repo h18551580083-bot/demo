@@ -1,0 +1,19 @@
+step=1 total=9.468s frontend=0.903s interaction=0.128s pooling=0.679s backward=7.540s
+step=2 total=8.173s frontend=0.068s interaction=0.037s pooling=0.615s backward=7.447s
+step=3 total=8.173s frontend=0.070s interaction=0.037s pooling=0.626s backward=7.433s
+step=4 total=8.183s frontend=0.067s interaction=0.038s pooling=0.618s backward=7.444s
+step=5 total=8.177s frontend=0.070s interaction=0.037s pooling=0.611s backward=7.452s
+step=6 total=8.158s frontend=0.069s interaction=0.037s pooling=0.612s backward=7.433s
+step=7 total=8.190s frontend=0.073s interaction=0.038s pooling=0.628s backward=7.446s
+
+=== 5-step average ===
+backward    :    7.442s   91.0%
+pooling     :    0.619s    7.6%
+frontend    :    0.070s    0.9%
+interaction :    0.038s    0.5%
+data        :    0.004s    0.0%
+optimizer   :    0.003s    0.0%
+transfer    :    0.001s    0.0%
+classifier  :    0.000s    0.0%
+loss        :    0.000s    0.0%
+total       :    8.176s

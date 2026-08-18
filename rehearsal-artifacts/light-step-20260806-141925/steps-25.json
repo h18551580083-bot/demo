@@ -1,0 +1,13 @@
+{
+  "formal_experiment": false,
+  "num_workers": 8,
+  "batch_size": 32,
+  "completed_steps": 25,
+  "epoch_batches": 2487,
+  "elapsed_seconds": 219.50702133215964,
+  "seconds_per_step": 8.780280853286385,
+  "samples_per_second": 3.6445303441543864,
+  "estimated_epoch_minutes": 363.9426413687207,
+  "mean_loss": 0.9082563734054565,
+  "gpu": "NVIDIA GeForce RTX 4090"
+}

@@ -1,0 +1,24 @@
+{
+  "classification": "non-formal performance rehearsal",
+  "purpose": "pre-refactor vectorized-pooling baseline",
+  "frozen_at_utc": "2026-08-06T07:43:19.680467+00:00",
+  "data_root": "/root/gpufree-data/cam16_extracted/cam16_patch_256_s128_512_class_quota",
+  "result_file": "/root/rehearsal-artifacts/vectorized-full-epoch-20260806-145017/full-epoch.json",
+  "completed_steps": 2487,
+  "epoch_batches": 2487,
+  "batch_size": 32,
+  "num_workers": 8,
+  "elapsed_seconds": 2671.081118989736,
+  "elapsed_minutes": 44.51801864982893,
+  "seconds_per_step": 1.0740173377522058,
+  "samples_per_second": 29.794677306580827,
+  "estimated_epoch_minutes": 44.51801864982893,
+  "mean_loss": 0.5143064239212534,
+  "gpu": "NVIDIA GeForce RTX 4090",
+  "formal_experiment": false,
+  "acceptance": {
+    "full_epoch_completed": true,
+    "seconds_per_step_le_1_2": true,
+    "elapsed_minutes_le_50": true
+  }
+}

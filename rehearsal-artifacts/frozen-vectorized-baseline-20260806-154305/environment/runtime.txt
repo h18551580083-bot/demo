@@ -1,0 +1,10 @@
+platform: Linux-5.15.0-171-generic-x86_64-with-glibc2.35
+python: 3.10.12
+torch: 2.3.0a0+6ddf5cf85e.nv24.04
+cuda_runtime: 12.4
+cudnn: 90100
+cuda_available: True
+gpu: NVIDIA GeForce RTX 4090
+capability: (8, 9)
+tf32_matmul: True
+tf32_cudnn: True

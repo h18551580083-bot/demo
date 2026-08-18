@@ -1,0 +1,6 @@
+patch_id,patch_path,split,slide_id,label,label_name,patch_label,slide_label
+patch-train-normal,patches/train/normal/patch-train-normal.png,train,slide-train-normal,0,normal,normal,normal
+patch-train-tumor,patches/train/tumor/patch-train-tumor.png,train,slide-train-tumor,1,tumor,tumor,tumor
+patch-val-normal,patches/val/normal/patch-val-normal.png,val,slide-val-normal,0,normal,normal,normal
+patch-val-tumor,patches/val/tumor/patch-val-tumor.png,val,slide-val-tumor,1,tumor,tumor,tumor
+patch-test-normal,patches/test/normal/patch-test-normal.png,test,slide-test-normal,0,normal,normal,normal

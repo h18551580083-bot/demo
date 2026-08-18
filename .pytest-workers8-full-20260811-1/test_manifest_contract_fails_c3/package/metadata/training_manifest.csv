@@ -1,0 +1,3 @@
+patch_id,patch_path,split,slide_id,label,label_name,patch_label,slide_label
+p-train-normal,patches/train/normal/p-train-normal.png,train,slide-train-normal,0,normal,normal,normal
+p-val-tumor,patches/val/tumor/p-val-tumor.png,val,,1,tumor,tumor,tumor

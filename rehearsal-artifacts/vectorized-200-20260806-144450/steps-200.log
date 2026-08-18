@@ -1,0 +1,22 @@
+GPU: NVIDIA GeForce RTX 4090
+step=25/200 loss=0.671059 elapsed=28.2s step_time=1.129s
+step=50/200 loss=0.660543 elapsed=55.1s step_time=1.101s
+step=75/200 loss=0.447933 elapsed=81.8s step_time=1.091s
+step=100/200 loss=0.560393 elapsed=108.7s step_time=1.087s
+step=125/200 loss=0.485089 elapsed=135.5s step_time=1.084s
+step=150/200 loss=0.673422 elapsed=162.3s step_time=1.082s
+step=175/200 loss=0.460638 elapsed=189.1s step_time=1.080s
+step=200/200 loss=0.396034 elapsed=215.9s step_time=1.079s
+{
+  "formal_experiment": false,
+  "num_workers": 8,
+  "batch_size": 32,
+  "completed_steps": 200,
+  "epoch_batches": 2487,
+  "elapsed_seconds": 215.9376740399748,
+  "seconds_per_step": 1.079688370199874,
+  "samples_per_second": 29.638181611677542,
+  "estimated_epoch_minutes": 44.75308294478478,
+  "mean_loss": 0.6116682237386704,
+  "gpu": "NVIDIA GeForce RTX 4090"
+}

@@ -1,0 +1,3 @@
+data_root=/root/gpufree-data/cam16_extracted/cam16_patch_256_s128_512_class_quota
+manifest=/root/gpufree-data/cam16_extracted/cam16_patch_256_s128_512_class_quota/metadata/training_manifest.csv
+23c681a3a338e4df96c2e3443b39349c4758e08009eb47d46928d148f62045ab  /root/gpufree-data/cam16_extracted/cam16_patch_256_s128_512_class_quota/metadata/training_manifest.csv

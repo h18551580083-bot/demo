@@ -1,0 +1,175 @@
+diff --git a/src/cg_pipeline/pooling.py b/src/cg_pipeline/pooling.py
+index f7cdf12..5242ee9 100644
+--- a/src/cg_pipeline/pooling.py
++++ b/src/cg_pipeline/pooling.py
+@@ -85,14 +85,26 @@ class _SafePopulationStd(torch.autograd.Function):
+     @staticmethod
+     def backward(ctx, grad_output: torch.Tensor):
+         leaves, mean, standard_deviation, divisor = ctx.saved_tensors
+-        gradient = torch.zeros_like(leaves)
++
+         positive = standard_deviation > 0.0
+-        if torch.any(positive):
+-            gradient[positive] = (
+-                grad_output[positive].unsqueeze(-1)
+-                * (leaves[positive] - mean[positive].unsqueeze(-1))
+-                / (divisor * standard_deviation[positive].unsqueeze(-1))
+-            )
++        safe_standard_deviation = torch.where(
++            positive,
++            standard_deviation,
++            torch.ones_like(standard_deviation),
++        )
++
++        gradient = (
++            grad_output.unsqueeze(-1)
++            * (leaves - mean.unsqueeze(-1))
++            / (divisor * safe_standard_deviation.unsqueeze(-1))
++        )
++
++        gradient = torch.where(
++            positive.unsqueeze(-1),
++            gradient,
++            torch.zeros_like(gradient),
++        )
++
+         return gradient, None, None, None
+ 
+ 
+@@ -123,43 +135,90 @@ class SupportAlignedPool(nn.Module):
+         if not torch.equal(pooling_mask, neighborhood_valid_support_mask):
+             raise PoolingContractError("pooling support must equal the neighborhood mask")
+         flattened = features.reshape(batch, 224, height, width)
+-        samples: list[torch.Tensor] = []
+-        count_rows: list[list[int]] = []
+-        for sample_index in range(batch):
+-            regions: list[torch.Tensor] = []
+-            counts: list[int] = []
+-            for region in geometry:
+-                selected_mask = pooling_mask[
+-                    sample_index,
+-                    0,
+-                    region.y_start : region.y_end,
+-                    region.x_start : region.x_end,
+-                ].reshape(-1)
+-                selected = flattened[
+-                    sample_index,
+-                    :,
+-                    region.y_start : region.y_end,
+-                    region.x_start : region.x_end,
+-                ].reshape(224, -1)[:, selected_mask]
+-                count = selected.shape[-1]
+-                if count == 0:
+-                    raise PoolingContractError(f"empty region before reduction: {region.index}")
+-                if not torch.isfinite(selected).all():
+-                    raise PoolingContractError("non-finite selected pooling input")
+-                leaves = selected.to(torch.float64)
+-                divisor = torch.tensor(float(count), dtype=torch.float64, device=features.device)
+-                mean = _balanced_sum(leaves) / divisor
+-                centered = leaves - mean.unsqueeze(-1)
+-                variance = _balanced_sum(centered * centered) / divisor
+-                standard_deviation = _SafePopulationStd.apply(leaves, mean, variance, divisor)
+-                statistics = torch.stack((mean, standard_deviation), dim=-1)
+-                if not torch.isfinite(statistics).all():
+-                    raise PoolingContractError("non-finite pooling intermediate or statistic")
+-                regions.append(statistics)
+-                counts.append(count)
+-            samples.append(torch.stack(regions, dim=1))
+-            count_rows.append(counts)
+-        statistics64 = torch.stack(samples).reshape(batch, 4, 8, 7, 21, 2)
++
++        reference_mask = pooling_mask[0:1]
++        if not torch.equal(
++            pooling_mask,
++            reference_mask.expand_as(pooling_mask),
++        ):
++            raise PoolingContractError(
++                "batch-vectorized pooling requires identical support masks"
++            )
++
++        region_statistics: list[torch.Tensor] = []
++        counts: list[int] = []
++
++        for region in geometry:
++            selected_mask = reference_mask[
++                0,
++                0,
++                region.y_start : region.y_end,
++                region.x_start : region.x_end,
++            ].reshape(-1)
++
++            selected = flattened[
++                :,
++                :,
++                region.y_start : region.y_end,
++                region.x_start : region.x_end,
++            ].reshape(batch, 224, -1)[:, :, selected_mask]
++
++            count = selected.shape[-1]
++            if count == 0:
++                raise PoolingContractError(
++                    f"empty region before reduction: {region.index}"
++                )
++            if not torch.isfinite(selected).all():
++                raise PoolingContractError(
++                    "non-finite selected pooling input"
++                )
++
++            leaves = selected.to(torch.float64)
++            divisor = torch.tensor(
++                float(count),
++                dtype=torch.float64,
++                device=features.device,
++            )
++
++            mean = _balanced_sum(leaves) / divisor
++            centered = leaves - mean.unsqueeze(-1)
++            variance = _balanced_sum(centered * centered) / divisor
++
++            standard_deviation = _SafePopulationStd.apply(
++                leaves,
++                mean,
++                variance,
++                divisor,
++            )
++
++            statistics = torch.stack(
++                (mean, standard_deviation),
++                dim=-1,
++            )
++
++            if not torch.isfinite(statistics).all():
++                raise PoolingContractError(
++                    "non-finite pooling intermediate or statistic"
++                )
++
++            region_statistics.append(statistics)
++            counts.append(count)
++
++        statistics64 = torch.stack(
++            region_statistics,
++            dim=2,
++        ).reshape(batch, 4, 8, 7, 21, 2)
++
++        count_rows = (
++            torch.tensor(
++                counts,
++                dtype=torch.int64,
++                device=features.device,
++            )
++            .unsqueeze(0)
++            .expand(batch, -1)
++            .clone()
++        )
+         limit = torch.finfo(torch.float32).max
+         if torch.any(torch.abs(statistics64) > limit):
+             raise PoolingContractError("float64 statistic exceeds the float32 range")
+@@ -169,7 +228,7 @@ class SupportAlignedPool(nn.Module):
+         return PoolOutput(
+             statistics_float64=statistics64,
+             pool_float32=pool32,
+-            valid_count=torch.tensor(count_rows, dtype=torch.int64, device=features.device),
++            valid_count=count_rows,
+             geometry=geometry,
+             pooling_support_mask=pooling_mask,
+         )

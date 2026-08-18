@@ -1,0 +1,3 @@
+patch_id,patch_path,split,slide_id,label,label_name,patch_label,slide_label
+patient-like-prefix-patch-a,patches/train/normal/patient-like-prefix-patch-a.png,train,patient-like-prefix-slide-a,0,normal,normal,normal
+patient-like-prefix-patch-b,patches/val/tumor/patient-like-prefix-patch-b.png,val,patient-like-prefix-slide-b,1,tumor,tumor,tumor
