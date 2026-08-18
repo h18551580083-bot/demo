@@ -169,7 +169,9 @@ class SupportAlignedPool(nn.Module):
             ].reshape(batch, 224, -1)
             if not torch.all(torch.isfinite(region_features) | ~selected_mask[:, None, :]):
                 raise PoolingContractError("non-finite selected pooling input")
-            selected_first = torch.argsort(~selected_mask, dim=-1, stable=True)
+            selected_first = torch.argsort(
+                (~selected_mask).to(torch.uint8), dim=-1, stable=True
+            )
             compacted_features = torch.gather(
                 region_features.to(torch.float64),
                 dim=-1,

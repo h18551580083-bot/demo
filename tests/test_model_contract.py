@@ -99,6 +99,60 @@ def test_support_aligned_pooling_batch_32_forward_and_backward() -> None:
     assert torch.isfinite(feature_values.grad).all()
 
 
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="requires a real CUDA device")
+def test_support_aligned_pooling_cpu_cuda_forward_and_backward_are_equivalent() -> None:
+    size = 114
+    feature_values = (
+        torch.arange(size * size, dtype=torch.float32).reshape(1, 1, 1, 1, size, size)
+        / float(size * size)
+    )
+    valid = _valid_mask(size)
+    neighborhood = torch.zeros_like(valid)
+    coordinates = torch.arange(8)
+    neighborhood[..., 53:61, 53:61] = (
+        coordinates[:, None] + coordinates[None, :]
+    ) % 2 == 0
+
+    cpu_values = feature_values.clone().requires_grad_(True)
+    cpu_output = SupportAlignedPool()(
+        cpu_values.expand(-1, 4, 8, 7, -1, -1),
+        valid,
+        neighborhood,
+    )
+    cpu_output.pool_float32.sum().backward()
+
+    cuda_values = feature_values.cuda().requires_grad_(True)
+    cuda_output = SupportAlignedPool()(
+        cuda_values.expand(-1, 4, 8, 7, -1, -1),
+        valid.cuda(),
+        neighborhood.cuda(),
+    )
+    cuda_output.pool_float32.sum().backward()
+
+    assert torch.equal(cuda_output.valid_count.cpu(), cpu_output.valid_count)
+    assert torch.equal(cuda_output.pooling_support_mask.cpu(), cpu_output.pooling_support_mask)
+    torch.testing.assert_close(
+        cuda_output.statistics_float64.cpu(),
+        cpu_output.statistics_float64,
+        atol=float.fromhex("0x1p-48"),
+        rtol=float.fromhex("0x1p-47"),
+    )
+    torch.testing.assert_close(
+        cuda_output.pool_float32.cpu(),
+        cpu_output.pool_float32,
+        atol=float.fromhex("0x1p-22"),
+        rtol=float.fromhex("0x1p-21"),
+    )
+    assert cpu_values.grad is not None
+    assert cuda_values.grad is not None
+    torch.testing.assert_close(
+        cuda_values.grad.cpu(),
+        cpu_values.grad,
+        atol=float.fromhex("0x1p-21"),
+        rtol=float.fromhex("0x1p-19"),
+    )
+
+
 def test_pooling_rejects_bad_geometry_subset_empty_and_nonfinite() -> None:
     pool = SupportAlignedPool()
     features = torch.zeros((1, 4, 8, 7, 110, 110), dtype=torch.float32)
