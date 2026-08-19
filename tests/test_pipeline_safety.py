@@ -4,14 +4,18 @@ import csv
 import json
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
+import torch
 from PIL import Image
 
 import cg_pipeline.pipeline as pipeline_module
+import cg_pipeline.runtime as runtime_module
 from cg_pipeline.config import ConfigError, load_experiment_config
 from cg_pipeline.pipeline import Phase0BlockedError, run_formal_training, run_preflight
+from cg_pipeline.runtime import prediction_ledger, validate_training_data
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 
@@ -46,14 +50,15 @@ def _git_repository(tmp_path: Path) -> Path:
     return repository
 
 
-def _formal_config(
-    tmp_path: Path, *, manifest_relpath: str = "package/training_manifest.csv"
-) -> Path:
+def _formal_config(tmp_path: Path) -> Path:
     text = (REPOSITORY / "configs" / "phase1_baseline.toml").read_text(encoding="utf-8")
-    for line in text.splitlines():
-        if line.startswith("manifest_relpath = "):
-            text = text.replace(line, f'manifest_relpath = "{manifest_relpath}"')
-            break
+    text = text.replace(
+        'train_manifest_relpath = "metadata/training_manifest_train.csv"',
+        'train_manifest_relpath = "package/training_manifest_train.csv"',
+    ).replace(
+        'validation_manifest_relpath = "metadata/training_manifest_val.csv"',
+        'validation_manifest_relpath = "package/training_manifest_val.csv"',
+    )
     path = tmp_path / "config.toml"
     path.write_text(text, encoding="utf-8")
     return path
@@ -67,14 +72,12 @@ def _data_root(tmp_path: Path, *, conflict: bool = False) -> Path:
         ("train", "tumor", 1),
         ("val", "normal", 0),
         ("val", "tumor", 1),
-        ("test", "normal", 0),
     ):
         patch_id = f"{split}-{label_name}"
         relative = f"patches/{split}/{label_name}/{patch_id}.png"
-        if split != "test":
-            path = root / relative
-            path.parent.mkdir(parents=True, exist_ok=True)
-            Image.fromarray(np.full((256, 256, 3), label * 255, dtype=np.uint8)).save(path)
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        Image.fromarray(np.full((256, 256, 3), label * 255, dtype=np.uint8)).save(path)
         rows.append(
             {
                 "patch_id": patch_id,
@@ -82,7 +85,7 @@ def _data_root(tmp_path: Path, *, conflict: bool = False) -> Path:
                 "split": split,
                 "slide_id": (
                     "shared"
-                    if conflict and split != "test" and label_name == "normal"
+                    if conflict and label_name == "normal"
                     else patch_id
                 ),
                 "label": str(label),
@@ -97,6 +100,12 @@ def _data_root(tmp_path: Path, *, conflict: bool = False) -> Path:
         writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
         writer.writeheader()
         writer.writerows(rows)
+    for split in ("train", "val"):
+        split_manifest = manifest.with_name(f"training_manifest_{split}.csv")
+        with split_manifest.open("x", encoding="utf-8", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+            writer.writeheader()
+            writer.writerows(row for row in rows if row["split"] == split)
     return root
 
 
@@ -147,14 +156,105 @@ def test_config_edit_remains_legal_and_preflight_passes(
         output_path=report_path,
     )
 
+    loaded = load_experiment_config(config)
+    assert loaded.data["train_manifest_relpath"] == "package/training_manifest_train.csv"
     assert (
-        load_experiment_config(config).data["manifest_relpath"] == "package/training_manifest.csv"
+        loaded.data["validation_manifest_relpath"]
+        == "package/training_manifest_val.csv"
     )
     assert report["status"] == "PASS"
     assert report["blocking_gates"] == []
     assert report_path.exists()
     assert report["schema"] == "formal-training-preflight-v1"
     assert "fixed_frontend_identity" in report
+
+
+def test_training_data_prefers_train_validation_manifests_without_reading_combined(
+    tmp_path: Path,
+) -> None:
+    config = load_experiment_config(_formal_config(tmp_path))
+    data = _data_root(tmp_path)
+    combined = data / "package" / "training_manifest.csv"
+    combined.write_text("prohibited combined manifest must remain unread\n", encoding="utf-8")
+
+    bundle = validate_training_data(config, data_root=data)
+
+    assert bundle.split_counts == {"train": 2, "val": 2, "test": 0}
+    assert bundle.effective_split_hashes.keys() == {"train", "val"}
+    assert tuple(path.name for path in bundle.manifests) == (
+        "training_manifest_train.csv",
+        "training_manifest_val.csv",
+    )
+
+
+def test_training_data_fails_closed_when_one_split_manifest_is_missing(
+    tmp_path: Path,
+) -> None:
+    config = load_experiment_config(_formal_config(tmp_path))
+    data = _data_root(tmp_path)
+    (data / "package" / "training_manifest_val.csv").unlink()
+
+    with pytest.raises(ValueError, match="explicit train and validation manifests"):
+        validate_training_data(config, data_root=data)
+
+
+def test_prediction_ledger_uses_inference_mode_and_one_host_logit_transfer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    batches = (
+        {
+            "rgb": torch.tensor([1, 2], dtype=torch.uint8).reshape(2, 1, 1, 1).expand(-1, 3, -1, -1),
+            "patch_id": ["p1", "p2"],
+            "slide_id": ["s1", "s2"],
+            "split": ["val", "val"],
+            "target": torch.tensor([0, 1]),
+            "slide_target": torch.tensor([0, 1]),
+        },
+        {
+            "rgb": torch.tensor([3], dtype=torch.uint8).reshape(1, 1, 1, 1).expand(-1, 3, -1, -1),
+            "patch_id": ["p3"],
+            "slide_id": ["s3"],
+            "split": ["val"],
+            "target": torch.tensor([1]),
+            "slide_target": torch.tensor([1]),
+        },
+    )
+
+    class SyntheticValidation:
+        def __len__(self) -> int:
+            return 3
+
+    class InferenceModel(torch.nn.Module):
+        def forward(self, rgb: torch.Tensor) -> SimpleNamespace:
+            assert torch.is_inference_mode_enabled()
+            return SimpleNamespace(logits=rgb[:, 0, 0, 0].to(torch.float32))
+
+    monkeypatch.setattr(runtime_module, "build_dataloader", lambda *_args, **_kwargs: batches)
+    original_transfer = runtime_module._concatenated_logits_to_host
+    transfer_batch_counts: list[int] = []
+
+    def observed_transfer(logit_batches: list[torch.Tensor]) -> list[float]:
+        transfer_batch_counts.append(len(logit_batches))
+        return original_transfer(logit_batches)
+
+    monkeypatch.setattr(runtime_module, "_concatenated_logits_to_host", observed_transfer)
+    config = SimpleNamespace(training={"batch_size": 2, "num_workers": 0})
+
+    predictions = prediction_ledger(
+        InferenceModel(),
+        SyntheticValidation(),
+        config,
+        torch.device("cpu"),
+        seed=1729,
+        epoch=0,
+    )
+
+    assert transfer_batch_counts == [2]
+    assert [(row.patch_id, row.slide_id, row.split, row.logit) for row in predictions] == [
+        ("p1", "s1", "val", 1.0),
+        ("p2", "s2", "val", 2.0),
+        ("p3", "s3", "val", 3.0),
+    ]
 
 
 def test_dirty_git_worktree_does_not_block_preflight(

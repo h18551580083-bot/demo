@@ -22,7 +22,8 @@ _SECTION_KEYS: dict[str, set[str]] = {
     "execution": {"kind", "run_id", "device", "output_root", "max_steps", "allow_test"},
     "data": {
         "contract_id",
-        "manifest_relpath",
+        "train_manifest_relpath",
+        "validation_manifest_relpath",
         "identity_level",
         "identity_column",
         "sample_id_column",
@@ -261,7 +262,7 @@ def _validate_shape(document: dict[str, Any]) -> None:
         raise ConfigError(f"missing top-level fields: {sorted(missing_top)}")
     if unknown_top:
         raise ConfigError(f"unknown top-level fields: {sorted(unknown_top)}")
-    if document["schema_version"] != "phase0-experiment-config-v1":
+    if document["schema_version"] != "phase0-experiment-config-v2":
         raise ConfigError("unsupported schema_version")
     for section, expected in _SECTION_KEYS.items():
         value = document[section]
@@ -297,9 +298,17 @@ def _validate_semantics(document: dict[str, Any]) -> None:
             raise ConfigError(
                 f"execution.{key} conflicts with the locked {execution['kind']} profile"
             )
-    manifest_path = PurePosixPath(str(document["data"]["manifest_relpath"]))
-    if manifest_path.is_absolute() or any(part in {"", ".", ".."} for part in manifest_path.parts):
-        raise ConfigError("data.manifest_relpath must be a normalized relative path")
+    manifest_paths = tuple(
+        PurePosixPath(str(document["data"][key]))
+        for key in ("train_manifest_relpath", "validation_manifest_relpath")
+    )
+    if any(
+        path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts)
+        for path in manifest_paths
+    ):
+        raise ConfigError("data manifest paths must be normalized relative paths")
+    if manifest_paths[0] == manifest_paths[1]:
+        raise ConfigError("train and validation manifest paths must be distinct")
     mapping_evidence = document["data"]["patient_mapping_evidence"]
     if mapping_evidence != "not_available":
         raise ConfigError("patient mapping evidence must remain not_available for CAM16 Phase 1")

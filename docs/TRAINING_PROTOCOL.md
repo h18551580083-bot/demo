@@ -3,7 +3,9 @@
 ## Authority and claim
 
 The executable source of formal parameters is
-`configs/phase1_baseline.toml`, schema `phase0-experiment-config-v1`. Unknown fields,
+`configs/phase1_baseline.toml`, schema `phase0-experiment-config-v2`. Version 2 replaces
+the combined-manifest input with explicit train and validation manifest paths; split
+membership and scientific training parameters are unchanged. Unknown fields,
 missing fields, TOML floating values, illegal values, and `TBD` fail before model
 construction. The config is not hashed or authenticated as a frozen identity.
 
@@ -20,7 +22,7 @@ Changing a scientific field creates a new contract and requires a new decision.
 
 `exploratory_train` uses real CAM16 train/validation data for profiling, engineering
 performance work, single-epoch or `max_steps` checks, and other non-formal
-experiments. It requires only the shared manifest readability, legal train/validation
+experiments. It requires only explicit train/validation manifest readability, legal
 splits, and `group_id`/`slide_id` cross-split isolation checks. It permits a dirty or
 untracked source tree, one seed, and CLI overrides for run/output identity, batch
 size, worker count, device, epoch count, and step count. Every exploratory artifact records

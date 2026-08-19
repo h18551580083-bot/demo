@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import random
 from pathlib import Path
 
 import pytest
@@ -134,6 +135,44 @@ def test_youden_uses_distinct_validation_logits_and_largest_threshold_tie() -> N
     assert selected.tp == 2 and selected.tn == 2
     tie = select_youden_threshold((0.0, 1.0, 2.0, 3.0), (0, 1, 0, 1))
     assert tie.threshold == 3.0
+
+
+def test_youden_linear_scan_matches_quadratic_reference_with_ties() -> None:
+    for seed in range(8):
+        generator = random.Random(seed)
+        scores = tuple(round(generator.uniform(-2.0, 2.0), 1) for _ in range(257))
+        targets = tuple(index % 2 for index in range(len(scores)))
+        positive_count = sum(targets)
+        negative_count = len(targets) - positive_count
+        expected = None
+        for threshold in sorted(set(scores)):
+            tp = fp = tn = fn = 0
+            for score, target in zip(scores, targets):
+                predicted = score >= threshold
+                tp += int(predicted and target == 1)
+                fp += int(predicted and target == 0)
+                tn += int(not predicted and target == 0)
+                fn += int(not predicted and target == 1)
+            numerator = (
+                tp * negative_count
+                + tn * positive_count
+                - positive_count * negative_count
+            )
+            candidate = (numerator, threshold, tp, fp, tn, fn)
+            if expected is None or candidate[:2] > expected[:2]:
+                expected = candidate
+
+        actual = select_youden_threshold(scores, targets)
+
+        assert expected is not None
+        assert (
+            actual.youden_numerator,
+            actual.threshold,
+            actual.tp,
+            actual.fp,
+            actual.tn,
+            actual.fn,
+        ) == expected
 
 
 def test_metrics_zero_denominator_is_explicitly_undefined() -> None:

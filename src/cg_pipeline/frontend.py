@@ -26,6 +26,24 @@ class FrontendOutput:
     fixed_frontend_identity: dict[str, str]
 
 
+@dataclass(frozen=True)
+class _FFTCacheKey:
+    canonical_kernel_hash: str
+    spatial_execution_kernel_hash: str
+    input_dimensions: tuple[int, int]
+    fft_grid: tuple[int, int]
+    dtype: str
+    normalization: str
+    shift_convention: str
+    crop_convention: str
+    backend_name: str
+    backend_version: str
+    device_class: str
+    device_index: int | None
+    kernel_data_ptr: int
+    kernel_version: int
+
+
 def _autocast_active() -> bool:
     cpu_enabled = getattr(torch, "is_autocast_cpu_enabled", lambda: False)()
     return bool(torch.is_autocast_enabled() or cpu_enabled)
@@ -45,6 +63,7 @@ def complex_convolve(
     kernels: torch.Tensor,
     *,
     backend: str,
+    kernel_fft: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """Reflect-pad and apply canonical complex kernels as true convolution."""
 
@@ -68,7 +87,14 @@ def complex_convolve(
     if backend == "fft":
         fft_shape = (height + 208, width + 208)
         image_fft = torch.fft.fft2(padded.to(torch.complex64), s=fft_shape, norm="backward")
-        kernel_fft = torch.fft.fft2(kernels, s=fft_shape, norm="backward")
+        if kernel_fft is None:
+            kernel_fft = torch.fft.fft2(kernels, s=fft_shape, norm="backward")
+        elif (
+            kernel_fft.shape != (kernels.shape[0], *fft_shape)
+            or kernel_fft.dtype != torch.complex64
+            or kernel_fft.device != kernels.device
+        ):
+            raise FrontendContractError("cached kernel spectrum is incompatible")
         full = torch.fft.ifft2(
             image_fft[:, 0, None] * kernel_fft[None], s=fft_shape, norm="backward"
         )
@@ -130,10 +156,35 @@ class FixedHEMorletFrontend(nn.Module):
         self._parameter_hash = bundle.parameter_hash
         self._canonical_kernel_hash = bundle.canonical_kernel_hash
         self._spatial_execution_hash = bundle.spatial_execution_hash
+        self._declared_fixed_identity = self.fixed_state_identity()
+        self._fixed_identity_cache_token = self._fixed_state_token()
+        self._kernel_fft_cache: torch.Tensor | None = None
+        self._kernel_fft_cache_key: _FFTCacheKey | None = None
 
     @property
     def shared_kernel_reference_count(self) -> int:
         return 1
+
+    def _fixed_state_token(self) -> tuple[tuple[object, ...], ...]:
+        return tuple(
+            (
+                name,
+                value.data_ptr(),
+                int(value._version),
+                value.device,
+                value.dtype,
+                tuple(value.shape),
+            )
+            for name in ("stain_basis", "stain_pseudoinverse", "morlet_kernels")
+            for value in (getattr(self, name),)
+        )
+
+    def _forward_fixed_state_identity(self) -> dict[str, str]:
+        token = self._fixed_state_token()
+        if token != self._fixed_identity_cache_token:
+            self._declared_fixed_identity = self.fixed_state_identity()
+            self._fixed_identity_cache_token = token
+        return dict(self._declared_fixed_identity)
 
     def separate_stains(self, rgb: torch.Tensor) -> torch.Tensor:
         if rgb.ndim != 4 or rgb.shape[1] != 3:
@@ -164,16 +215,49 @@ class FixedHEMorletFrontend(nn.Module):
         height, width = rgb.shape[-2:]
         if height <= 52 or width <= 52:
             raise FrontendContractError("input dimensions must be larger than 52")
+        fixed_identity = self._forward_fixed_state_identity()
         concentrations = self.separate_stains(rgb)
         batch = concentrations.shape[0]
         combined = concentrations.reshape(batch * 2, 1, height, width)
-        response = complex_convolve(combined, self.morlet_kernels, backend=self.backend)
+        kernel_fft = None
+        if self.backend == "fft":
+            fft_shape = (height + 208, width + 208)
+            cache_key = _FFTCacheKey(
+                canonical_kernel_hash=self._canonical_kernel_hash,
+                spatial_execution_kernel_hash=self._spatial_execution_hash,
+                input_dimensions=(height, width),
+                fft_grid=fft_shape,
+                dtype=str(self.morlet_kernels.dtype).removeprefix("torch."),
+                normalization="backward",
+                shift_convention="no-shift",
+                crop_convention="offset-104-same-size",
+                backend_name="torch.fft.fft2-ifft2",
+                backend_version=str(torch.__version__),
+                device_class=rgb.device.type,
+                device_index=rgb.device.index,
+                kernel_data_ptr=self.morlet_kernels.data_ptr(),
+                kernel_version=int(self.morlet_kernels._version),
+            )
+            if self._kernel_fft_cache is None or self._kernel_fft_cache_key != cache_key:
+                self._kernel_fft_cache = torch.fft.fft2(
+                    self.morlet_kernels,
+                    s=fft_shape,
+                    norm="backward",
+                )
+                self._kernel_fft_cache_key = cache_key
+            kernel_fft = self._kernel_fft_cache
+        response = complex_convolve(
+            combined,
+            self.morlet_kernels,
+            backend=self.backend,
+            kernel_fft=kernel_fft,
+        )
         modulus = _stable_modulus(response).reshape(batch, 2, 4, 8, height, width)
         return FrontendOutput(
             feature_h=modulus[:, 0],
             feature_e=modulus[:, 1],
             valid_support_mask=self._valid_mask(batch, height, width, rgb.device),
-            fixed_frontend_identity=self.fixed_state_identity(),
+            fixed_frontend_identity=fixed_identity,
         )
 
     def fixed_state_identity(self) -> dict[str, str]:

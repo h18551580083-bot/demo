@@ -10,7 +10,7 @@ from cg_pipeline.identity import canonical_json_bytes, domain_hash
 
 def _document() -> str:
     return """
-schema_version = "phase0-experiment-config-v1"
+schema_version = "phase0-experiment-config-v2"
 
 [execution]
 kind = "exploratory_train"
@@ -22,7 +22,8 @@ allow_test = false
 
 [data]
 contract_id = "cam16-existing-patch-v1"
-manifest_relpath = "cam16_class_quota/metadata/training_manifest.csv"
+train_manifest_relpath = "cam16_class_quota/metadata/training_manifest_train.csv"
+validation_manifest_relpath = "cam16_class_quota/metadata/training_manifest_val.csv"
 identity_level = "slide_id"
 identity_column = "slide_id"
 sample_id_column = "patch_id"
@@ -124,7 +125,7 @@ def test_config_is_strict_normalized_and_hashed(tmp_path: Path) -> None:
 
     config = load_experiment_config(path)
 
-    assert config.schema_version == "phase0-experiment-config-v1"
+    assert config.schema_version == "phase0-experiment-config-v2"
     assert config.execution_kind == "exploratory_train"
     assert config.data["identity_level"] == "slide_id"
     assert config.training["batch_size"] == 32
@@ -143,6 +144,13 @@ def test_config_is_strict_normalized_and_hashed(tmp_path: Path) -> None:
         (lambda text: text.replace('run_id = "exploratory-default"\n', ""), "missing"),
         (lambda text: text.replace('gradient_clip = "none"', 'gradient_clip = "TBD"'), "TBD"),
         (lambda text: text.replace('learning_rate = "0.001"', "learning_rate = 0.001"), "floating"),
+        (
+            lambda text: text.replace(
+                'schema_version = "phase0-experiment-config-v2"',
+                'schema_version = "phase0-experiment-config-v1"',
+            ),
+            "unsupported schema_version",
+        ),
         (lambda text: text.replace("allow_test = false", "allow_test = true"), "test access"),
         (
             lambda text: text.replace(

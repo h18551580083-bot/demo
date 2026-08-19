@@ -95,3 +95,93 @@ def test_frontend_buffer_bytes_and_identities_are_stable() -> None:
         "spatial_execution_hash",
         "fixed_state_sha256",
     }
+
+
+def test_frontend_forward_reuses_declared_identity_without_rehashing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    frontend = FixedHEMorletFrontend(backend="fft")
+    expected = frontend.fixed_state_identity()
+
+    def reject_rehash() -> dict[str, str]:
+        raise AssertionError("forward metadata must not rehash immutable buffers")
+
+    monkeypatch.setattr(frontend, "fixed_state_identity", reject_rehash)
+
+    output = frontend(torch.full((1, 3, 110, 110), 255, dtype=torch.uint8))
+
+    assert output.fixed_frontend_identity == expected
+
+
+def test_frontend_forward_refreshes_identity_after_fixed_buffer_version_changes() -> None:
+    frontend = FixedHEMorletFrontend(backend="fft")
+    rgb = torch.full((1, 3, 110, 110), 255, dtype=torch.uint8)
+    original = frontend(rgb).fixed_frontend_identity
+    with torch.no_grad():
+        frontend.stain_basis.add_(torch.finfo(torch.float64).eps)
+    expected = frontend.fixed_state_identity()
+
+    refreshed = frontend(rgb).fixed_frontend_identity
+
+    assert refreshed == expected
+    assert refreshed != original
+
+
+def test_frontend_reuses_fixed_kernel_spectrum(monkeypatch: pytest.MonkeyPatch) -> None:
+    frontend = FixedHEMorletFrontend(backend="fft")
+    original_fft2 = torch.fft.fft2
+    kernel_fft_calls = 0
+
+    def tracked_fft2(input: torch.Tensor, *args: object, **kwargs: object) -> torch.Tensor:
+        nonlocal kernel_fft_calls
+        if input.data_ptr() == frontend.morlet_kernels.data_ptr():
+            kernel_fft_calls += 1
+        return original_fft2(input, *args, **kwargs)
+
+    monkeypatch.setattr(torch.fft, "fft2", tracked_fft2)
+    rgb = torch.full((1, 3, 110, 110), 255, dtype=torch.uint8)
+
+    first = frontend(rgb)
+    second = frontend(rgb)
+
+    assert kernel_fft_calls == 1
+    assert torch.equal(first.feature_h, second.feature_h)
+    assert torch.equal(first.feature_e, second.feature_e)
+
+
+def test_fft_cache_key_contains_scientific_identity_and_replaced_buffer_invalidates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    frontend = FixedHEMorletFrontend(backend="fft")
+    rgb = torch.zeros((1, 3, 110, 110), dtype=torch.uint8)
+    original_fft2 = torch.fft.fft2
+    kernel_fft_calls = 0
+
+    def tracked_fft2(input: torch.Tensor, *args: object, **kwargs: object) -> torch.Tensor:
+        nonlocal kernel_fft_calls
+        if input.ndim == 3 and input.shape == (32, 105, 105):
+            kernel_fft_calls += 1
+        return original_fft2(input, *args, **kwargs)
+
+    monkeypatch.setattr(torch.fft, "fft2", tracked_fft2)
+    frontend(rgb)
+    identity = frontend.fixed_state_identity()
+    key = frontend._kernel_fft_cache_key
+
+    assert key is not None
+    assert key.canonical_kernel_hash == identity["canonical_kernel_hash"]
+    assert key.spatial_execution_kernel_hash == identity["spatial_execution_hash"]
+    assert key.input_dimensions == (110, 110)
+    assert key.fft_grid == (318, 318)
+    assert key.dtype == "complex64"
+    assert key.normalization == "backward"
+    assert key.shift_convention == "no-shift"
+    assert key.crop_convention == "offset-104-same-size"
+    assert key.backend_name == "torch.fft.fft2-ifft2"
+    assert key.backend_version == str(torch.__version__)
+    assert key.device_class == "cpu"
+
+    frontend.morlet_kernels = frontend.morlet_kernels.clone()
+    frontend(rgb)
+
+    assert kernel_fft_calls == 2

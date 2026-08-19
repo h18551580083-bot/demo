@@ -22,7 +22,6 @@ def _manifest_package(root: Path) -> Path:
         ("train", "tumor", 1),
         ("val", "normal", 0),
         ("val", "tumor", 1),
-        ("test", "normal", 0),
     ):
         relative = f"patches/{split}/{label_name}/patch-{split}-{label_name}.png"
         rows.append(
@@ -37,16 +36,21 @@ def _manifest_package(root: Path) -> Path:
                 "slide_label": label_name,
             }
         )
-        if split != "test":
-            path = root / relative
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.touch()
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch()
     manifest = root / "cam16_class_quota" / "metadata" / "training_manifest.csv"
     manifest.parent.mkdir(parents=True)
     with manifest.open("x", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
         writer.writeheader()
         writer.writerows(rows)
+    for split in ("train", "val"):
+        split_manifest = manifest.with_name(f"training_manifest_{split}.csv")
+        with split_manifest.open("x", encoding="utf-8", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+            writer.writeheader()
+            writer.writerows(row for row in rows if row["split"] == split)
     return root
 
 

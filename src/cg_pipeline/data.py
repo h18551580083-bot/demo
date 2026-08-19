@@ -69,7 +69,7 @@ class IsolationReport:
 @dataclass(frozen=True)
 class ManifestBundle:
     root: Path
-    manifest: Path
+    manifests: tuple[Path, ...]
     rows: tuple[ManifestRow, ...]
     split_counts: dict[str, int]
     label_counts: dict[str, int]
@@ -266,7 +266,7 @@ def validate_manifest(
     label_counts_counter = Counter("tumor" if row.patch_target else "normal" for row in frozen_rows)
     return ManifestBundle(
         root=package_root,
-        manifest=manifest_path,
+        manifests=(manifest_path,),
         rows=frozen_rows,
         split_counts={split: split_counts_counter[split] for split in _SPLITS},
         label_counts={name: label_counts_counter[name] for name in _CLASS_MAP},
@@ -284,6 +284,102 @@ def validate_manifest(
             patient_mapping_evidence="not_available",
         ),
         disk_inventory=disk_inventory,
+    )
+
+
+def validate_train_validation_manifests(
+    root: Path | str,
+    train_manifest: Path | str,
+    validation_manifest: Path | str,
+    *,
+    check_files: bool,
+) -> ManifestBundle:
+    """Validate and merge explicit train/validation manifests without reading test metadata."""
+
+    train_bundle = validate_manifest(
+        root,
+        train_manifest,
+        check_files=check_files,
+        reconcile_disk=False,
+        effective_hash_splits=("train",),
+        file_check_splits=("train",),
+    )
+    validation_bundle = validate_manifest(
+        root,
+        validation_manifest,
+        check_files=check_files,
+        reconcile_disk=False,
+        effective_hash_splits=("val",),
+        file_check_splits=("val",),
+    )
+    for bundle, expected_split in (
+        (train_bundle, "train"),
+        (validation_bundle, "val"),
+    ):
+        unexpected = [row.split for row in bundle.rows if row.split != expected_split]
+        if unexpected:
+            raise DataContractError(
+                f"{expected_split} manifest contains a non-{expected_split} row"
+            )
+
+    rows = train_bundle.rows + validation_bundle.rows
+    seen_patch_ids: set[str] = set()
+    seen_paths: set[str] = set()
+    slide_splits: dict[str, str] = {}
+    slide_targets: dict[str, int] = {}
+    for row in rows:
+        if row.patch_id in seen_patch_ids:
+            raise DataContractError(f"duplicate patch_id across manifests: {row.patch_id}")
+        if row.patch_path in seen_paths:
+            raise DataContractError(f"duplicate patch_path across manifests: {row.patch_path}")
+        seen_patch_ids.add(row.patch_id)
+        seen_paths.add(row.patch_path)
+        previous_split = slide_splits.setdefault(row.slide_id, row.split)
+        if previous_split != row.split:
+            raise DataContractError(f"slide_id crosses splits: {row.slide_id}")
+        previous_target = slide_targets.setdefault(row.slide_id, row.slide_target)
+        if previous_target != row.slide_target:
+            raise DataContractError(f"conflicting slide labels for slide_id: {row.slide_id}")
+
+    source_digest = hashlib.sha256(b"cg/train-validation-manifest-pair/v1\x00")
+    for role, identity in (
+        (b"train", train_bundle.source_manifest_sha256),
+        (b"val", validation_bundle.source_manifest_sha256),
+    ):
+        source_digest.update(role + b"\x00")
+        source_digest.update(bytes.fromhex(identity.removeprefix("sha256:")))
+    label_counts = {
+        name: train_bundle.label_counts[name] + validation_bundle.label_counts[name]
+        for name in _CLASS_MAP
+    }
+    return ManifestBundle(
+        root=train_bundle.root,
+        manifests=(train_bundle.manifests[0], validation_bundle.manifests[0]),
+        rows=rows,
+        split_counts={
+            "train": train_bundle.split_counts["train"],
+            "val": validation_bundle.split_counts["val"],
+            "test": 0,
+        },
+        label_counts=label_counts,
+        source_manifest_sha256="sha256:" + source_digest.hexdigest(),
+        effective_split_hashes={
+            "train": train_bundle.effective_split_hashes["train"],
+            "val": validation_bundle.effective_split_hashes["val"],
+        },
+        isolation=IsolationReport(
+            identity_level="slide_id",
+            identity_column="slide_id",
+            cross_split_conflicts=0,
+            patient_level_isolation=PATIENT_LEVEL_ISOLATION,
+            patient_level_claim_allowed=PATIENT_LEVEL_CLAIM_ALLOWED,
+            isolation_claim=GROUP_SLIDE_ISOLATION_CLAIM,
+            patient_mapping_evidence="not_available",
+        ),
+        disk_inventory={
+            "manifest_png_count": len(rows),
+            "disk_png_count": -1,
+        },
     )
 
 

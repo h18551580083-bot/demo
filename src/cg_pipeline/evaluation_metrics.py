@@ -177,8 +177,22 @@ def select_youden_threshold(scores: tuple[float, ...], targets: tuple[int, ...])
     if positive_count == 0 or negative_count == 0:
         raise EvaluationMetricError("Youden threshold requires both classes")
     best: ThresholdResult | None = None
-    for threshold in sorted(set(scores)):
-        tp, fp, tn, fn = _counts(scores, targets, threshold)
+    tp = fp = 0
+    tn = negative_count
+    fn = positive_count
+    ordered = sorted(zip(scores, targets), key=lambda item: item[0], reverse=True)
+    index = 0
+    while index < len(ordered):
+        threshold = ordered[index][0]
+        while index < len(ordered) and ordered[index][0] == threshold:
+            target = ordered[index][1]
+            if target:
+                tp += 1
+                fn -= 1
+            else:
+                fp += 1
+                tn -= 1
+            index += 1
         numerator = tp * negative_count + tn * positive_count - positive_count * negative_count
         candidate = ThresholdResult(
             threshold, tp, fp, tn, fn, numerator, positive_count * negative_count

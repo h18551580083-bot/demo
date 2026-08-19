@@ -1,4 +1,4 @@
-schema_version = "phase0-experiment-config-v1"
+schema_version = "phase0-experiment-config-v2"
 
 [execution]
 kind = "formal_train"
@@ -10,7 +10,8 @@ allow_test = false
 
 [data]
 contract_id = "cam16-existing-patch-v1"
-manifest_relpath = "metadata/training_manifest.csv"
+train_manifest_relpath = "metadata/training_manifest_train.csv"
+validation_manifest_relpath = "metadata/training_manifest_val.csv"
 identity_level = "slide_id"
 identity_column = "slide_id"
 sample_id_column = "patch_id"

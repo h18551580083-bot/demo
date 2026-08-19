@@ -90,6 +90,17 @@ def _balanced_sum(values: torch.Tensor, counts: torch.Tensor) -> torch.Tensor:
     return level[..., 0]
 
 
+def _dense_balanced_sum(values: torch.Tensor) -> torch.Tensor:
+    level = values
+    while level.shape[-1] > 1:
+        pair_count = level.shape[-1] // 2
+        parents = level[..., : 2 * pair_count : 2] + level[..., 1 : 2 * pair_count : 2]
+        if level.shape[-1] % 2:
+            parents = torch.cat((parents, level[..., -1:]), dim=-1)
+        level = parents
+    return level[..., 0]
+
+
 class _SafePopulationStd(torch.autograd.Function):
     @staticmethod
     def forward(
@@ -122,6 +133,90 @@ class _SafePopulationStd(torch.autograd.Function):
         return gradient, None, None, None, None
 
 
+class _DensePyramidStatistics(torch.autograd.Function):
+    @staticmethod
+    def forward(
+        ctx,
+        features: torch.Tensor,
+    ) -> torch.Tensor:
+        _, _, height, width = features.shape
+        geometry = support_aligned_regions(height, width)
+        region_statistics: list[torch.Tensor] = []
+        means: list[torch.Tensor] = []
+        standard_deviations: list[torch.Tensor] = []
+        for region in geometry:
+            region_features = features[
+                :,
+                :,
+                region.y_start : region.y_end,
+                region.x_start : region.x_end,
+            ].reshape(features.shape[0], features.shape[1], -1)
+            leaves = region_features.to(torch.float64)
+            count = leaves.shape[-1]
+            mean = _dense_balanced_sum(leaves) / count
+            centered = leaves - mean.unsqueeze(-1)
+            variance = _dense_balanced_sum(centered * centered) / count
+            standard_deviation = torch.sqrt(variance)
+            means.append(mean)
+            standard_deviations.append(standard_deviation)
+            region_statistics.append(torch.stack((mean, standard_deviation), dim=-1))
+        mean_tensor = torch.stack(means, dim=2)
+        standard_deviation_tensor = torch.stack(standard_deviations, dim=2)
+        ctx.geometry = geometry
+        ctx.save_for_backward(features, mean_tensor, standard_deviation_tensor)
+        return torch.stack(region_statistics, dim=2)
+
+    @staticmethod
+    def backward(ctx, grad_output: torch.Tensor) -> tuple[torch.Tensor]:
+        features, means, standard_deviations = ctx.saved_tensors
+        gradient = torch.zeros_like(features)
+        for index, region in enumerate(ctx.geometry):
+            region_features = features[
+                :,
+                :,
+                region.y_start : region.y_end,
+                region.x_start : region.x_end,
+            ].reshape(features.shape[0], features.shape[1], -1)
+            leaves = region_features.to(torch.float64)
+            count = leaves.shape[-1]
+            mean = means[:, :, index]
+            standard_deviation = standard_deviations[:, :, index]
+            positive = standard_deviation > 0.0
+            safe_standard_deviation = torch.where(
+                positive,
+                standard_deviation,
+                torch.ones_like(standard_deviation),
+            )
+            mean_gradient = grad_output[:, :, index, 0].unsqueeze(-1) / count
+            standard_deviation_gradient = (
+                grad_output[:, :, index, 1].unsqueeze(-1)
+                * (leaves - mean.unsqueeze(-1))
+                / (count * safe_standard_deviation.unsqueeze(-1))
+            )
+            standard_deviation_gradient = torch.where(
+                positive.unsqueeze(-1),
+                standard_deviation_gradient,
+                torch.zeros_like(standard_deviation_gradient),
+            )
+            region_gradient = (mean_gradient + standard_deviation_gradient).to(
+                features.dtype
+            )
+            gradient[
+                :,
+                :,
+                region.y_start : region.y_end,
+                region.x_start : region.x_end,
+            ].add_(region_gradient.reshape_as(
+                gradient[
+                    :,
+                    :,
+                    region.y_start : region.y_end,
+                    region.x_start : region.x_end,
+                ]
+            ))
+        return (gradient,)
+
+
 class SupportAlignedPool(nn.Module):
     def forward(
         self,
@@ -149,64 +244,98 @@ class SupportAlignedPool(nn.Module):
         if not torch.equal(pooling_mask, neighborhood_valid_support_mask):
             raise PoolingContractError("pooling support must equal the neighborhood mask")
         flattened = features.reshape(batch, 224, height, width)
-        region_statistics: list[torch.Tensor] = []
+        canonical_mask = torch.zeros_like(pooling_mask[0:1])
+        canonical_mask[..., 53 : height - 53, 53 : width - 53] = True
+        dense_support = torch.equal(
+            pooling_mask,
+            canonical_mask.expand_as(pooling_mask),
+        )
+        if dense_support and not torch.isfinite(
+            flattened[..., 53 : height - 53, 53 : width - 53]
+        ).all():
+            raise PoolingContractError("non-finite selected pooling input")
         count_columns: list[torch.Tensor] = []
-        for region in geometry:
-            selected_mask = pooling_mask[
-                :,
-                0,
-                region.y_start : region.y_end,
-                region.x_start : region.x_end,
-            ].reshape(batch, -1)
-            counts = selected_mask.sum(dim=-1)
-            if torch.any(counts == 0):
-                raise PoolingContractError(f"empty region before reduction: {region.index}")
-            region_features = flattened[
-                :,
-                :,
-                region.y_start : region.y_end,
-                region.x_start : region.x_end,
-            ].reshape(batch, 224, -1)
-            if not torch.all(torch.isfinite(region_features) | ~selected_mask[:, None, :]):
-                raise PoolingContractError("non-finite selected pooling input")
-            selected_first = torch.argsort(
-                (~selected_mask).to(torch.uint8), dim=-1, stable=True
+        if dense_support:
+            statistics64 = _DensePyramidStatistics.apply(flattened).reshape(
+                batch, 4, 8, 7, 21, 2
             )
-            compacted_features = torch.gather(
-                region_features.to(torch.float64),
-                dim=-1,
-                index=selected_first[:, None, :].expand(-1, 224, -1),
+            count_columns = [
+                torch.full(
+                    (batch,),
+                    (region.y_end - region.y_start) * (region.x_end - region.x_start),
+                    dtype=torch.int64,
+                    device=features.device,
+                )
+                for region in geometry
+            ]
+        else:
+            region_statistics: list[torch.Tensor] = []
+            for region in geometry:
+                selected_mask = pooling_mask[
+                    :,
+                    0,
+                    region.y_start : region.y_end,
+                    region.x_start : region.x_end,
+                ].reshape(batch, -1)
+                counts = selected_mask.sum(dim=-1)
+                if torch.any(counts == 0):
+                    raise PoolingContractError(
+                        f"empty region before reduction: {region.index}"
+                    )
+                region_features = flattened[
+                    :,
+                    :,
+                    region.y_start : region.y_end,
+                    region.x_start : region.x_end,
+                ].reshape(batch, 224, -1)
+                if not torch.all(
+                    torch.isfinite(region_features) | ~selected_mask[:, None, :]
+                ):
+                    raise PoolingContractError("non-finite selected pooling input")
+                selected_first = torch.argsort(
+                    (~selected_mask).to(torch.uint8), dim=-1, stable=True
+                )
+                compacted_features = torch.gather(
+                    region_features.to(torch.float64),
+                    dim=-1,
+                    index=selected_first[:, None, :].expand(-1, 224, -1),
+                )
+                compacted_mask = (
+                    torch.arange(selected_mask.shape[-1], device=features.device)[None, :]
+                    < counts[:, None]
+                )
+                leaves = torch.where(
+                    compacted_mask[:, None, :],
+                    compacted_features,
+                    torch.zeros((), dtype=torch.float64, device=features.device),
+                )
+                divisor = counts.to(torch.float64)
+                mean = _balanced_sum(leaves, counts) / divisor[:, None]
+                centered = torch.where(
+                    compacted_mask[:, None, :],
+                    leaves - mean.unsqueeze(-1),
+                    torch.zeros((), dtype=torch.float64, device=features.device),
+                )
+                variance = _balanced_sum(centered * centered, counts) / divisor[:, None]
+                standard_deviation = _SafePopulationStd.apply(
+                    leaves,
+                    mean,
+                    variance,
+                    divisor,
+                    compacted_mask,
+                )
+                statistics = torch.stack((mean, standard_deviation), dim=-1)
+                if not torch.isfinite(statistics).all():
+                    raise PoolingContractError(
+                        "non-finite pooling intermediate or statistic"
+                    )
+                region_statistics.append(statistics)
+                count_columns.append(counts)
+            statistics64 = torch.stack(region_statistics, dim=2).reshape(
+                batch, 4, 8, 7, 21, 2
             )
-            compacted_mask = (
-                torch.arange(selected_mask.shape[-1], device=features.device)[None, :]
-                < counts[:, None]
-            )
-            leaves = torch.where(
-                compacted_mask[:, None, :],
-                compacted_features,
-                torch.zeros((), dtype=torch.float64, device=features.device),
-            )
-            divisor = counts.to(torch.float64)
-            mean = _balanced_sum(leaves, counts) / divisor[:, None]
-            centered = torch.where(
-                compacted_mask[:, None, :],
-                leaves - mean.unsqueeze(-1),
-                torch.zeros((), dtype=torch.float64, device=features.device),
-            )
-            variance = _balanced_sum(centered * centered, counts) / divisor[:, None]
-            standard_deviation = _SafePopulationStd.apply(
-                leaves,
-                mean,
-                variance,
-                divisor,
-                compacted_mask,
-            )
-            statistics = torch.stack((mean, standard_deviation), dim=-1)
-            if not torch.isfinite(statistics).all():
-                raise PoolingContractError("non-finite pooling intermediate or statistic")
-            region_statistics.append(statistics)
-            count_columns.append(counts)
-        statistics64 = torch.stack(region_statistics, dim=2).reshape(batch, 4, 8, 7, 21, 2)
+        if not torch.isfinite(statistics64).all():
+            raise PoolingContractError("non-finite pooling intermediate or statistic")
         limit = torch.finfo(torch.float32).max
         if torch.any(torch.abs(statistics64) > limit):
             raise PoolingContractError("float64 statistic exceeds the float32 range")

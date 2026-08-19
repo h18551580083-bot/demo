@@ -75,9 +75,9 @@ def test_support_aligned_pooling_shape_counts_zero_variance_and_backward() -> No
     assert output.valid_count.tolist() == [[16, 4, 4, 4, 4] + [1] * 16]
     assert torch.equal(output.pool_float32[..., 0], features[..., 0, 0, None].expand_as(output.pool_float32[..., 0]))
     assert torch.equal(output.pool_float32[..., 1], torch.zeros_like(output.pool_float32[..., 1]))
-    output.pool_float32.sum().backward()
+    output.statistics_float64[..., 1].sum().backward()
     assert features.grad is not None
-    assert torch.isfinite(features.grad).all()
+    assert torch.equal(features.grad, torch.zeros_like(features.grad))
 
 
 def test_support_aligned_pooling_batch_32_forward_and_backward() -> None:
@@ -97,6 +97,113 @@ def test_support_aligned_pooling_batch_32_forward_and_backward() -> None:
     output.pool_float32.sum().backward()
     assert feature_values.grad is not None
     assert torch.isfinite(feature_values.grad).all()
+
+
+def test_support_aligned_pooling_dense_regions_do_not_sort(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    feature_values = torch.arange(110 * 110, dtype=torch.float32).reshape(
+        1, 1, 1, 1, 110, 110
+    )
+    features = feature_values.expand(2, 4, 8, 7, -1, -1)
+    valid = _valid_mask().expand(2, -1, -1, -1)
+    neighborhood = torch.zeros_like(valid)
+    neighborhood[..., 53:57, 53:57] = True
+
+    def reject_sort(*_args: object, **_kwargs: object) -> torch.Tensor:
+        raise AssertionError("dense support must not require sorting")
+
+    monkeypatch.setattr(torch, "argsort", reject_sort)
+
+    output = SupportAlignedPool()(features, valid, neighborhood)
+
+    assert output.valid_count.tolist() == [[16, 4, 4, 4, 4] + [1] * 16] * 2
+
+
+def test_support_aligned_pooling_dense_path_matches_reference_forward_and_backward() -> None:
+    torch.manual_seed(31)
+    size = 115
+    feature_values = torch.rand(
+        (2, 4, 8, 7, size, size), dtype=torch.float32, requires_grad=True
+    )
+    reference_values = feature_values.detach().clone().requires_grad_(True)
+    valid = _valid_mask(size).expand(2, -1, -1, -1)
+    neighborhood = torch.zeros_like(valid)
+    neighborhood[..., 53 : size - 53, 53 : size - 53] = True
+
+    output = SupportAlignedPool()(feature_values, valid, neighborhood)
+    reference_features = reference_values.reshape(2, 224, size, size)
+
+    def reference_balanced_sum(values: torch.Tensor) -> torch.Tensor:
+        level = values
+        while level.shape[-1] > 1:
+            pair_count = level.shape[-1] // 2
+            level = level[..., : 2 * pair_count : 2] + level[..., 1 : 2 * pair_count : 2]
+            if values.shape[-1] % 2:
+                level = torch.cat((level, values[..., -1:]), dim=-1)
+            values = level
+        return level[..., 0]
+
+    reference_regions = []
+    for region in output.geometry:
+        leaves = reference_features[
+            :, :, region.y_start : region.y_end, region.x_start : region.x_end
+        ].reshape(2, 224, -1).to(torch.float64)
+        count = leaves.shape[-1]
+        mean = reference_balanced_sum(leaves) / count
+        centered = leaves - mean.unsqueeze(-1)
+        standard_deviation = torch.sqrt(reference_balanced_sum(centered * centered) / count)
+        reference_regions.append(torch.stack((mean, standard_deviation), dim=-1))
+    reference = torch.stack(reference_regions, dim=2).reshape(2, 4, 8, 7, 21, 2)
+
+    torch.testing.assert_close(output.statistics_float64, reference, atol=1e-12, rtol=1e-12)
+    upstream = torch.randn_like(reference)
+    output.statistics_float64.backward(upstream)
+    reference.backward(upstream)
+
+    assert feature_values.grad is not None
+    assert reference_values.grad is not None
+    torch.testing.assert_close(
+        feature_values.grad, reference_values.grad, atol=2e-4, rtol=2e-5
+    )
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="requires a real CUDA device")
+def test_support_aligned_pooling_dense_cpu_cuda_forward_and_backward_are_equivalent() -> None:
+    torch.manual_seed(37)
+    size = 115
+    values = torch.rand((1, 4, 8, 7, size, size), dtype=torch.float32)
+    upstream = torch.randn((1, 4, 8, 7, 21, 2), dtype=torch.float64)
+    valid = _valid_mask(size)
+    neighborhood = torch.zeros_like(valid)
+    neighborhood[..., 53 : size - 53, 53 : size - 53] = True
+
+    cpu_values = values.clone().requires_grad_(True)
+    cpu_output = SupportAlignedPool()(cpu_values, valid, neighborhood)
+    cpu_output.statistics_float64.backward(upstream)
+
+    cuda_values = values.cuda().requires_grad_(True)
+    cuda_output = SupportAlignedPool()(
+        cuda_values,
+        valid.cuda(),
+        neighborhood.cuda(),
+    )
+    cuda_output.statistics_float64.backward(upstream.cuda())
+
+    torch.testing.assert_close(
+        cuda_output.statistics_float64.cpu(),
+        cpu_output.statistics_float64,
+        atol=float.fromhex("0x1p-48"),
+        rtol=float.fromhex("0x1p-47"),
+    )
+    assert cpu_values.grad is not None
+    assert cuda_values.grad is not None
+    torch.testing.assert_close(
+        cuda_values.grad.cpu(),
+        cpu_values.grad,
+        atol=float.fromhex("0x1p-21"),
+        rtol=float.fromhex("0x1p-19"),
+    )
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="requires a real CUDA device")

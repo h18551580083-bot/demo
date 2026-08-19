@@ -9,11 +9,12 @@ import torch
 
 from .config import ExperimentConfig
 from .data import (
+    DataContractError,
     ManifestBundle,
     PatchDataset,
     build_dataloader,
     expected_batch_count,
-    validate_manifest,
+    validate_train_validation_manifests,
 )
 from .evaluation import AuthorizedEvaluationRow, EvaluationContext, Prediction
 from .model import FixedHEClassifier
@@ -49,14 +50,22 @@ def batch_contract(config: ExperimentConfig, bundle: ManifestBundle) -> BatchCon
 
 
 def validate_training_data(config: ExperimentConfig, *, data_root: Path) -> ManifestBundle:
-    manifest = data_root / Path(*PurePosixPath(str(config.data["manifest_relpath"])).parts)
-    bundle = validate_manifest(
+    train_manifest = data_root / Path(
+        *PurePosixPath(str(config.data["train_manifest_relpath"])).parts
+    )
+    validation_manifest = data_root / Path(
+        *PurePosixPath(str(config.data["validation_manifest_relpath"])).parts
+    )
+    if not train_manifest.is_file() or not validation_manifest.is_file():
+        raise DataContractError(
+            "training requires explicit train and validation manifests; "
+            "no combined manifest fallback is allowed"
+        )
+    bundle = validate_train_validation_manifests(
         data_root,
-        manifest,
+        train_manifest,
+        validation_manifest,
         check_files=True,
-        reconcile_disk=False,
-        effective_hash_splits=("train", "val"),
-        file_check_splits=("train", "val"),
     )
     if bundle.split_counts["train"] < 1 or bundle.split_counts["val"] < 1:
         raise ValueError("training data must contain nonempty train and validation splits")
@@ -108,6 +117,12 @@ def evaluation_context(
     )
 
 
+def _concatenated_logits_to_host(logit_batches: list[torch.Tensor]) -> list[float]:
+    if not logit_batches:
+        return []
+    return torch.cat(logit_batches, dim=0).cpu().tolist()
+
+
 def prediction_ledger(
     model: FixedHEClassifier,
     dataset: PatchDataset,
@@ -124,22 +139,49 @@ def prediction_ledger(
         epoch=epoch,
         num_workers=int(config.training["num_workers"]),
     )
-    predictions: list[Prediction] = []
+    logit_batches: list[torch.Tensor] = []
+    metadata: list[tuple[str, str, str, int, int]] = []
     model.eval()
-    with torch.no_grad():
+    with torch.inference_mode():
         for batch in loader:
-            logits = model(batch["rgb"].to(device)).logits.detach().cpu().tolist()
-            predictions.extend(
-                Prediction(
-                    patch_id=batch["patch_id"][index],
-                    slide_id=batch["slide_id"][index],
-                    split=batch["split"][index],
-                    patch_target=int(batch["target"][index].item()),
-                    slide_target=int(batch["slide_target"][index].item()),
-                    logit=logit,
+            logits = model(batch["rgb"].to(device)).logits.detach()
+            if logits.ndim != 1:
+                raise RuntimeError("prediction logits must have shape [B]")
+            batch_metadata = list(
+                zip(
+                    batch["patch_id"],
+                    batch["slide_id"],
+                    batch["split"],
+                    batch["target"].tolist(),
+                    batch["slide_target"].tolist(),
+                    strict=True,
                 )
-                for index, logit in enumerate(logits)
             )
+            if len(batch_metadata) != logits.shape[0]:
+                raise RuntimeError("prediction metadata and logits have different lengths")
+            logit_batches.append(logits)
+            metadata.extend(
+                (patch_id, slide_id, split, int(patch_target), int(slide_target))
+                for patch_id, slide_id, split, patch_target, slide_target in batch_metadata
+            )
+    host_logits = _concatenated_logits_to_host(logit_batches)
+    if len(host_logits) != len(metadata):
+        raise RuntimeError("prediction metadata and logits have different lengths")
+    predictions = [
+        Prediction(
+            patch_id=patch_id,
+            slide_id=slide_id,
+            split=split,
+            patch_target=patch_target,
+            slide_target=slide_target,
+            logit=logit,
+        )
+        for (patch_id, slide_id, split, patch_target, slide_target), logit in zip(
+            metadata,
+            host_logits,
+            strict=True,
+        )
+    ]
     if len(predictions) != len(dataset) or len({row.patch_id for row in predictions}) != len(
         dataset
     ):
