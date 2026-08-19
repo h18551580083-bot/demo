@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
+import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import torch
 
+from cg_pipeline import training_runs
 from cg_pipeline.model import FixedHEClassifier
 from cg_pipeline.training import (
     TrainingContractError,
@@ -21,7 +25,7 @@ from cg_pipeline.training import (
     save_checkpoint,
     train_one_step,
 )
-from cg_pipeline.training_runs import load_complete_epoch_history
+from cg_pipeline.training_runs import load_complete_epoch_history, run_formal_seed
 
 
 def _state_metadata(
@@ -320,3 +324,82 @@ def test_multi_seed_aggregation_excludes_failed_runs_and_reports_individuals() -
     assert result["mean"] == 0.75
     assert result["sample_standard_deviation"] == pytest.approx(2**-1.5)
     assert result["individual"] == [{"seed": 1729, "value": 1.0}, {"seed": 7919, "value": 0.5}]
+
+
+def test_formal_epoch_reports_duration_and_existing_metrics(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    evaluation = {
+        "slide_auroc": {"value": 0.8715},
+        "slide_metrics": {"accuracy": 0.8243},
+        "unchanged_marker": "existing-evaluation",
+    }
+
+    class FakeFrontend:
+        @staticmethod
+        def fixed_state_identity() -> dict[str, str]:
+            return {"canonical_kernel_hash": "sha256:" + "1" * 64}
+
+    class FakeModel:
+        frontend = FakeFrontend()
+
+        def to(self, _device: torch.device) -> FakeModel:
+            return self
+
+    clock_values = iter((100.0, 102.5))
+    last_clock_value = 102.5
+
+    def fake_perf_counter() -> float:
+        nonlocal last_clock_value
+        last_clock_value = next(clock_values, last_clock_value)
+        return last_clock_value
+
+    monkeypatch.setattr(time, "perf_counter", fake_perf_counter)
+    monkeypatch.setattr(training_runs, "configure_determinism", lambda _seed: None)
+    monkeypatch.setattr(training_runs, "FixedHEClassifier", lambda **_kwargs: FakeModel())
+    monkeypatch.setattr(training_runs, "build_optimizer", lambda *_args: object())
+    monkeypatch.setattr(training_runs, "_train_epoch", lambda *_args, **_kwargs: [0.4, 0.6])
+    monkeypatch.setattr(
+        training_runs, "_validation_report", lambda *_args, **_kwargs: evaluation
+    )
+    monkeypatch.setattr(
+        training_runs,
+        "_state_metadata",
+        lambda *_args, epoch, **_kwargs: {"epoch": epoch},
+    )
+    monkeypatch.setattr(
+        training_runs,
+        "save_checkpoint",
+        lambda path, *_args, **_kwargs: path.write_bytes(b"checkpoint-placeholder"),
+    )
+    config = SimpleNamespace(
+        model={"frontend_backend": "fft"},
+        training={"max_epochs": 1, "early_stopping_patience": 10},
+    )
+    bundle = SimpleNamespace(
+        source_manifest_sha256="sha256:" + "2" * 64,
+        effective_split_hashes={"train": "sha256:" + "3" * 64},
+    )
+
+    result = run_formal_seed(
+        config,
+        bundle,
+        object(),
+        object(),
+        torch.device("cpu"),
+        tmp_path,
+        seed=1729,
+        resume=False,
+    )
+
+    assert result["best_epoch"] == 0
+    report = json.loads((tmp_path / "seed-1729" / "epoch-0000.json").read_text("utf-8"))
+    assert report["mean_training_loss"] == 0.5
+    assert report["evaluation"] == evaluation
+    assert report["epoch_duration_seconds"] == 2.5
+    assert math.isfinite(report["epoch_duration_seconds"])
+    assert report["epoch_duration_seconds"] >= 0.0
+    assert capsys.readouterr().out.strip() == (
+        "[FORMAL] seed=1729 epoch=0 time=2.5s (0.04m) loss=0.5000 "
+        "val_slide_auc=0.8715 val_slide_acc=0.8243 best_epoch=0 best_auc=0.8715"
+    )

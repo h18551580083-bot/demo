@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from typing import Any
 
@@ -310,12 +311,15 @@ def run_formal_seed(
         start_epoch = int(expected["epoch"]) + 1
     best_metric, best_epoch, no_improvement = _history_state(history)
     for epoch in range(start_epoch, int(config.training["max_epochs"])):
+        epoch_started_at = time.perf_counter()
         losses = _train_epoch(
             model, optimizer, train_dataset, config, device, seed=seed, epoch=epoch
         )
         evaluation = _validation_report(
             model, val_dataset, bundle, config, device, seed=seed, epoch=epoch
         )
+        epoch_duration_seconds = time.perf_counter() - epoch_started_at
+        mean_training_loss = sum(losses) / len(losses)
         metric = float(evaluation["slide_auroc"]["value"])
         if metric > best_metric:
             best_metric, best_epoch, no_improvement = metric, epoch, 0
@@ -327,11 +331,21 @@ def run_formal_seed(
             "epoch": epoch,
             "seed": seed,
             "batch_count": len(losses),
-            "mean_training_loss": sum(losses) / len(losses),
+            "mean_training_loss": mean_training_loss,
+            "epoch_duration_seconds": epoch_duration_seconds,
             "evaluation": evaluation,
             "best_epoch": best_epoch,
             "test_split_accessed": False,
         }
+        validation_slide_accuracy = float(evaluation["slide_metrics"]["accuracy"])
+        print(
+            f"[FORMAL] seed={seed} epoch={epoch} "
+            f"time={epoch_duration_seconds:.1f}s ({epoch_duration_seconds / 60.0:.2f}m) "
+            f"loss={mean_training_loss:.4f} val_slide_auc={metric:.4f} "
+            f"val_slide_acc={validation_slide_accuracy:.4f} "
+            f"best_epoch={best_epoch} best_auc={best_metric:.4f}",
+            flush=True,
+        )
         _write_epoch_artifacts(seed_dir, model, optimizer, metadata, report)
         history.append(report)
         if no_improvement >= int(config.training["early_stopping_patience"]):
