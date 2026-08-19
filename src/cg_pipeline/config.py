@@ -192,9 +192,7 @@ _EXECUTION_PROFILES: dict[str, dict[str, Any]] = {
         "allow_test": False,
     },
     "formal_train": {
-        "run_id": "phase1-cam16-baseline-b32-v2",
         "device": "cuda:0",
-        "output_root": "artifacts/formal_runs/phase1-cam16-baseline-b32-v2",
         "max_steps": 0,
         "allow_test": False,
     },
@@ -293,7 +291,7 @@ def _validate_semantics(document: dict[str, Any]) -> None:
     profile = _EXECUTION_PROFILES[execution["kind"]]
     locked_execution_fields = ("allow_test",)
     if execution["kind"] == "formal_train":
-        locked_execution_fields = ("run_id", "device", "output_root", "max_steps", "allow_test")
+        locked_execution_fields = ("device", "max_steps", "allow_test")
     for key in locked_execution_fields:
         if execution[key] != profile[key]:
             raise ConfigError(
@@ -317,7 +315,19 @@ def _validate_semantics(document: dict[str, Any]) -> None:
             continue
         if document[section][key] != expected:
             raise ConfigError(f"{section}.{key} conflicts with the locked contract")
-    if execution["kind"] == "exploratory_train":
+    if execution["kind"] == "formal_train":
+        run_id = execution["run_id"]
+        if not isinstance(run_id, str) or not run_id or run_id != run_id.strip():
+            raise ConfigError("formal execution.run_id must be nonempty without outer whitespace")
+        if run_id in {".", ".."} or "/" in run_id or "\\" in run_id:
+            raise ConfigError("formal execution.run_id must be a single safe path component")
+        expected_output_root = f"artifacts/formal_runs/{run_id}"
+        if execution["output_root"] != expected_output_root:
+            raise ConfigError(
+                "formal execution.output_root must exactly match execution.run_id under "
+                "artifacts/formal_runs"
+            )
+    else:
         if not execution["run_id"] or execution["run_id"] != execution["run_id"].strip():
             raise ConfigError(
                 "exploratory execution.run_id must be nonempty without outer whitespace"

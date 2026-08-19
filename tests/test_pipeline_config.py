@@ -112,6 +112,12 @@ gradient_scaling = false
 """.strip()
 
 
+def _formal_document() -> str:
+    return (Path(__file__).resolve().parents[1] / "configs" / "phase1_baseline.toml").read_text(
+        encoding="utf-8"
+    )
+
+
 def test_config_is_strict_normalized_and_hashed(tmp_path: Path) -> None:
     path = tmp_path / "config.toml"
     path.write_text(_document(), encoding="utf-8")
@@ -226,22 +232,86 @@ def test_exploratory_engineering_overrides_are_typed_and_hashed(tmp_path: Path) 
 
 
 @pytest.mark.parametrize(
-    ("old", "new"),
+    ("old", "new", "message"),
     [
-        ("batch_size = 32", "batch_size = 8"),
-        ("num_workers = 8", "num_workers = 0"),
+        ('device = "cuda:0"', 'device = "cuda:1"', "locked formal_train profile"),
+        ("max_steps = 0", "max_steps = 1", "locked formal_train profile"),
+        ("allow_test = false", "allow_test = true", "test access"),
+        ('identity_column = "slide_id"', 'identity_column = "group_id"', "locked contract"),
+        ('classifier = "linear-logit-v1"', 'classifier = "mlp"', "locked contract"),
+        ("batch_size = 32", "batch_size = 8", "locked contract"),
+        ("num_workers = 8", "num_workers = 0", "locked contract"),
+        ('primary_metric = "slide_auroc"', 'primary_metric = "patch_auroc"', "locked contract"),
+        ("tf32 = false", "tf32 = true", "determinism and precision guards"),
     ],
 )
-def test_formal_config_keeps_engineering_fields_exact_locked(
-    tmp_path: Path, old: str, new: str
+def test_formal_config_keeps_remaining_contract_fields_locked(
+    tmp_path: Path, old: str, new: str, message: str
 ) -> None:
-    source = (Path(__file__).resolve().parents[1] / "configs" / "phase1_baseline.toml").read_text(
-        encoding="utf-8"
+    path = tmp_path / "formal.toml"
+    path.write_text(_formal_document().replace(old, new), encoding="utf-8")
+
+    with pytest.raises(ConfigError, match=message):
+        load_experiment_config(path)
+
+
+def test_formal_config_accepts_new_run_identity_with_matching_output_root(
+    tmp_path: Path,
+) -> None:
+    source = _formal_document().replace(
+        'run_id = "phase1-cam16-baseline-b32-v2"',
+        'run_id = "phase1-cam16-baseline-b32-v3"',
+    ).replace(
+        'output_root = "artifacts/formal_runs/phase1-cam16-baseline-b32-v2"',
+        'output_root = "artifacts/formal_runs/phase1-cam16-baseline-b32-v3"',
     )
     path = tmp_path / "formal.toml"
-    path.write_text(source.replace(old, new), encoding="utf-8")
+    path.write_text(source, encoding="utf-8")
 
-    with pytest.raises(ConfigError, match="locked contract"):
+    config = load_experiment_config(path)
+
+    assert config.execution["run_id"] == "phase1-cam16-baseline-b32-v3"
+    assert config.execution["output_root"] == (
+        "artifacts/formal_runs/phase1-cam16-baseline-b32-v3"
+    )
+
+
+def test_formal_config_rejects_run_id_output_root_mismatch(tmp_path: Path) -> None:
+    source = _formal_document().replace(
+        'run_id = "phase1-cam16-baseline-b32-v2"',
+        'run_id = "phase1-cam16-baseline-b32-v3"',
+    )
+    path = tmp_path / "formal.toml"
+    path.write_text(source, encoding="utf-8")
+
+    with pytest.raises(ConfigError, match="must exactly match execution.run_id"):
+        load_experiment_config(path)
+
+
+@pytest.mark.parametrize(
+    ("run_id", "output_root"),
+    [
+        ("", "artifacts/formal_runs/"),
+        (" outer-space ", "artifacts/formal_runs/ outer-space "),
+        ("../escaped", "artifacts/formal_runs/../escaped"),
+        ("nested/run", "artifacts/formal_runs/nested/run"),
+        (r"..\escaped", r"artifacts/formal_runs/..\escaped"),
+        ("new-formal-run", "E:/outside/new-formal-run"),
+    ],
+)
+def test_formal_config_rejects_invalid_run_identity_paths(
+    tmp_path: Path, run_id: str, output_root: str
+) -> None:
+    source = _formal_document().replace(
+        'run_id = "phase1-cam16-baseline-b32-v2"', f"run_id = '{run_id}'"
+    ).replace(
+        'output_root = "artifacts/formal_runs/phase1-cam16-baseline-b32-v2"',
+        f"output_root = '{output_root}'",
+    )
+    path = tmp_path / "formal.toml"
+    path.write_text(source, encoding="utf-8")
+
+    with pytest.raises(ConfigError):
         load_experiment_config(path)
 
 
