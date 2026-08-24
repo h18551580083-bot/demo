@@ -1,0 +1,1158 @@
+{
+  "backward_execution": {
+    "api": "torch.autograd.backward(pool_float32, G)",
+    "backward_calls": 3,
+    "fresh_leaf_per_fixture": true,
+    "gradient_source": "z.grad",
+    "manual_device_dz_generation": false
+  },
+  "code_identities": {
+    "calibration_orchestrator": {
+      "module": "cg_acceptance.calibration",
+      "sha256": "f5f9a271f8351c6e0ab7831377da8452daad266239fbf4c7d86a4eb280121289",
+      "version": "decision30-calibration-gate-v2"
+    },
+    "comparator": {
+      "module": "cg_acceptance.comparator",
+      "sha256": "31f8dd6b5da2983d3aa3a2a7827ce27ce0a13dd92615c82d1c8ee8ec8d55caa0",
+      "version": "decision30-comparator-v1"
+    },
+    "cpu_reference": {
+      "module": "cg_acceptance.cpu_reference",
+      "sha256": "707a3f1da6adf8799de032f9e38abf81dbbdabddf2f9edd46f8d075c1356569e",
+      "version": "decision30-cpu-reference-v2"
+    },
+    "device_operator": {
+      "module": "cg_acceptance.device_operator",
+      "sha256": "eb3747a02ac795fb5cfd2c71485d8c2c50fd7bb36fa31c464a98b5e9a3574a72",
+      "version": "decision30-device-pooling-v2"
+    }
+  },
+  "cpu_reference_code_sha256": "707a3f1da6adf8799de032f9e38abf81dbbdabddf2f9edd46f8d075c1356569e",
+  "cpu_reference_version": "decision30-cpu-reference-v2",
+  "device_identity": {
+    "autocast_enabled": false,
+    "compute_capability": "8.9",
+    "cpu_identity": "Intel64 Family 6 Model 191 Stepping 2, GenuineIntel",
+    "cpu_logical_count": 20,
+    "cuda_runtime": "12.1",
+    "cudnn_allow_tf32": false,
+    "cudnn_version": 8801,
+    "default_dtype": "torch.float32",
+    "deterministic_algorithms": true,
+    "device_index": 0,
+    "device_name": "NVIDIA GeForce RTX 4060 Laptop GPU",
+    "device_type": "cuda",
+    "driver_version": "591.74",
+    "float32_subnormal_preserved": true,
+    "float64_subnormal_preserved": true,
+    "gpu_name": "NVIDIA GeForce RTX 4060 Laptop GPU",
+    "gpu_total_memory_bytes": 8585216000,
+    "gpu_uuid": "GPU-ffe61d85-a9c4-0f97-19e9-1f866cb9403d",
+    "gradient_scaling_enabled": false,
+    "machine": "AMD64",
+    "matmul_allow_tf32": false,
+    "node": "LAPTOP-THRB8Q73",
+    "python_implementation": "CPython",
+    "python_version": "3.10.18",
+    "rounding_policy": "ieee754_round_to_nearest_ties_to_even",
+    "system": "Windows",
+    "system_release": "10",
+    "system_version": "10.0.26200",
+    "torch_version": "2.2.2+cu121"
+  },
+  "environment_pass": true,
+  "fixture_registration": {
+    "fixture_name": "batch2-non8x8",
+    "formal_shape": [
+      2,
+      4,
+      8,
+      7,
+      9,
+      11
+    ],
+    "input_hashes": {
+      "mask": "9f4f6892da33b22320f9c6312892145ae8f6a2e8937ecd2c5aedaa36c14db8a2",
+      "valid_counts": "1e7cebb0668b0d87277f2471dfe9bc6ccf736201f6f7517533f79406f2b216af",
+      "z": "e715192720d59015ce3e2eec1b4399595d003add20c3d75bb082f8a2094c0e2a"
+    },
+    "preregistered": false
+  },
+  "formal_gate_pass": null,
+  "formal_input_shape": [
+    2,
+    4,
+    8,
+    7,
+    9,
+    11
+  ],
+  "gate_code_sha256": "f5f9a271f8351c6e0ab7831377da8452daad266239fbf4c7d86a4eb280121289",
+  "gate_version": "decision30-calibration-gate-v2",
+  "input_hashes": {
+    "mask": "9f4f6892da33b22320f9c6312892145ae8f6a2e8937ecd2c5aedaa36c14db8a2",
+    "valid_counts": "1e7cebb0668b0d87277f2471dfe9bc6ccf736201f6f7517533f79406f2b216af",
+    "z": "e715192720d59015ce3e2eec1b4399595d003add20c3d75bb082f8a2094c0e2a"
+  },
+  "input_identity_pass": true,
+  "mode": "local_smoke",
+  "negative_controls": [
+    {
+      "comparison": {
+        "audit": {
+          "comparator_code_sha256": "31f8dd6b5da2983d3aa3a2a7827ce27ce0a13dd92615c82d1c8ee8ec8d55caa0",
+          "comparator_version": "decision30-comparator-v1",
+          "cpu_formal_object_sha256": "d799f48a82dc11d4e09fda37479845dfa790e11be698d4695afa968a8df6286b",
+          "cpu_input_hashes": {
+            "mask": "9f4f6892da33b22320f9c6312892145ae8f6a2e8937ecd2c5aedaa36c14db8a2",
+            "valid_counts": "1e7cebb0668b0d87277f2471dfe9bc6ccf736201f6f7517533f79406f2b216af",
+            "z": "e715192720d59015ce3e2eec1b4399595d003add20c3d75bb082f8a2094c0e2a"
+          },
+          "cpu_reference_id": "decision30-cpu-reference-v2",
+          "device_formal_object_sha256": "985cdacb6ae6f751b845ad4c4157647fd7ef37040e7178c35c98d952c5b371c1",
+          "device_input_hashes": {
+            "mask": "9f4f6892da33b22320f9c6312892145ae8f6a2e8937ecd2c5aedaa36c14db8a2",
+            "valid_counts": "1e7cebb0668b0d87277f2471dfe9bc6ccf736201f6f7517533f79406f2b216af",
+            "z": "e715192720d59015ce3e2eec1b4399595d003add20c3d75bb082f8a2094c0e2a"
+          },
+          "fixture_name": "batch2-non8x8",
+          "floating_point_environment": {
+            "binary64_daz_probe_preserved": true,
+            "binary64_ftz_probe_preserved": true,
+            "binary64_mantissa_bits": 53,
+            "float_rounds": 1,
+            "machine": "AMD64",
+            "operation_policy": "separate_binary64_operations_no_fma",
+            "python_implementation": "CPython",
+            "python_version": "3.10.18"
+          },
+          "formal_object_dtype": "torch.float32",
+          "formal_object_element_count": 18816,
+          "formal_object_shape": [
+            2,
+            4,
+            8,
+            7,
+            21,
+            2
+          ],
+          "run_id": "autograd-local-smoke",
+          "tested_device_id": "NVIDIA GeForce RTX 4060 Laptop GPU|GPU-ffe61d85-a9c4-0f97-19e9-1f866cb9403d",
+          "tolerance_constants": {
+            "atol": "0x1p-22",
+            "near_zero_threshold": "0x1p-16",
+            "rtol": "0x1p-21"
+          },
+          "tolerance_profile_version": "decision30-tolerances-v1"
+        },
+        "failing_element_count": 11927,
+        "first_failure": {
+          "active_rule": "general",
+          "bound": 4.76837158203125e-07,
+          "cpu_value": 0.5,
+          "device_value": 0.4765625,
+          "difference": -0.0234375,
+          "error": 0.0234375,
+          "logical_index": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "nonfinite_type": null,
+          "relative_term": 2.384185791015625e-07
+        },
+        "fixture_name": "batch2-non8x8",
+        "maximum_error": {
+          "error": 4246034465161216.0,
+          "logical_index": [
+            0,
+            0,
+            0,
+            1,
+            5,
+            1
+          ]
+        },
+        "minimum_margin_factor": 0.0,
+        "object_kind": "postcast_pool_float32",
+        "quarter_margin_pass": false,
+        "verdict": "device_failed"
+      },
+      "detected": true,
+      "execution_path": "candidate_device_operator",
+      "name": "axis_permutation"
+    },
+    {
+      "comparison": {
+        "audit": {
+          "comparator_code_sha256": "31f8dd6b5da2983d3aa3a2a7827ce27ce0a13dd92615c82d1c8ee8ec8d55caa0",
+          "comparator_version": "decision30-comparator-v1",
+          "cpu_formal_object_sha256": "d799f48a82dc11d4e09fda37479845dfa790e11be698d4695afa968a8df6286b",
+          "cpu_input_hashes": {
+            "mask": "9f4f6892da33b22320f9c6312892145ae8f6a2e8937ecd2c5aedaa36c14db8a2",
+            "valid_counts": "1e7cebb0668b0d87277f2471dfe9bc6ccf736201f6f7517533f79406f2b216af",
+            "z": "e715192720d59015ce3e2eec1b4399595d003add20c3d75bb082f8a2094c0e2a"
+          },
+          "cpu_reference_id": "decision30-cpu-reference-v2",
+          "device_formal_object_sha256": "c289bc374ee90be40279990cf8b7e2334457678ac6e3bfddd6fc46f02e74a836",
+          "device_input_hashes": {
+            "mask": "9f4f6892da33b22320f9c6312892145ae8f6a2e8937ecd2c5aedaa36c14db8a2",
+            "valid_counts": "1e7cebb0668b0d87277f2471dfe9bc6ccf736201f6f7517533f79406f2b216af",
+            "z": "e715192720d59015ce3e2eec1b4399595d003add20c3d75bb082f8a2094c0e2a"
+          },
+          "fixture_name": "batch2-non8x8",
+          "floating_point_environment": {
+            "binary64_daz_probe_preserved": true,
+            "binary64_ftz_probe_preserved": true,
+            "binary64_mantissa_bits": 53,
+            "float_rounds": 1,
+            "machine": "AMD64",
+            "operation_policy": "separate_binary64_operations_no_fma",
+            "python_implementation": "CPython",
+            "python_version": "3.10.18"
+          },
+          "formal_object_dtype": "torch.float32",
+          "formal_object_element_count": 18816,
+          "formal_object_shape": [
+            2,
+            4,
+            8,
+            7,
+            21,
+            2
+          ],
+          "run_id": "autograd-local-smoke",
+          "tested_device_id": "NVIDIA GeForce RTX 4060 Laptop GPU|GPU-ffe61d85-a9c4-0f97-19e9-1f866cb9403d",
+          "tolerance_constants": {
+            "atol": "0x1p-22",
+            "near_zero_threshold": "0x1p-16",
+            "rtol": "0x1p-21"
+          },
+          "tolerance_profile_version": "decision30-tolerances-v1"
+        },
+        "failing_element_count": 18816,
+        "first_failure": {
+          "active_rule": "general",
+          "bound": 4.76837158203125e-07,
+          "cpu_value": 0.5,
+          "device_value": 0.0,
+          "difference": -0.5,
+          "error": 0.5,
+          "logical_index": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "nonfinite_type": null,
+          "relative_term": 2.384185791015625e-07
+        },
+        "fixture_name": "batch2-non8x8",
+        "maximum_error": {
+          "error": 1648431802089472.0,
+          "logical_index": [
+            1,
+            0,
+            0,
+            1,
+            5,
+            0
+          ]
+        },
+        "minimum_margin_factor": 0.0,
+        "object_kind": "postcast_pool_float32",
+        "quarter_margin_pass": false,
+        "verdict": "device_failed"
+      },
+      "detected": true,
+      "execution_path": "candidate_device_operator",
+      "name": "mean_std_slot_exchange"
+    },
+    {
+      "comparison": {
+        "audit": {
+          "comparator_code_sha256": "31f8dd6b5da2983d3aa3a2a7827ce27ce0a13dd92615c82d1c8ee8ec8d55caa0",
+          "comparator_version": "decision30-comparator-v1",
+          "cpu_formal_object_sha256": "d799f48a82dc11d4e09fda37479845dfa790e11be698d4695afa968a8df6286b",
+          "cpu_input_hashes": {
+            "mask": "9f4f6892da33b22320f9c6312892145ae8f6a2e8937ecd2c5aedaa36c14db8a2",
+            "valid_counts": "1e7cebb0668b0d87277f2471dfe9bc6ccf736201f6f7517533f79406f2b216af",
+            "z": "e715192720d59015ce3e2eec1b4399595d003add20c3d75bb082f8a2094c0e2a"
+          },
+          "cpu_reference_id": "decision30-cpu-reference-v2",
+          "device_formal_object_sha256": "95e7abd7ffeaa7178ef3f2c0b8437dd99023bbc98e7266386120deafa336278f",
+          "device_input_hashes": {
+            "mask": "9f4f6892da33b22320f9c6312892145ae8f6a2e8937ecd2c5aedaa36c14db8a2",
+            "valid_counts": "1e7cebb0668b0d87277f2471dfe9bc6ccf736201f6f7517533f79406f2b216af",
+            "z": "e715192720d59015ce3e2eec1b4399595d003add20c3d75bb082f8a2094c0e2a"
+          },
+          "fixture_name": "batch2-non8x8",
+          "floating_point_environment": {
+            "binary64_daz_probe_preserved": true,
+            "binary64_ftz_probe_preserved": true,
+            "binary64_mantissa_bits": 53,
+            "float_rounds": 1,
+            "machine": "AMD64",
+            "operation_policy": "separate_binary64_operations_no_fma",
+            "python_implementation": "CPython",
+            "python_version": "3.10.18"
+          },
+          "formal_object_dtype": "torch.float32",
+          "formal_object_element_count": 18816,
+          "formal_object_shape": [
+            2,
+            4,
+            8,
+            7,
+            21,
+            2
+          ],
+          "run_id": "autograd-local-smoke",
+          "tested_device_id": "NVIDIA GeForce RTX 4060 Laptop GPU|GPU-ffe61d85-a9c4-0f97-19e9-1f866cb9403d",
+          "tolerance_constants": {
+            "atol": "0x1p-22",
+            "near_zero_threshold": "0x1p-16",
+            "rtol": "0x1p-21"
+          },
+          "tolerance_profile_version": "decision30-tolerances-v1"
+        },
+        "failing_element_count": 18738,
+        "first_failure": {
+          "active_rule": "general",
+          "bound": 4.76837158203125e-07,
+          "cpu_value": 0.5,
+          "device_value": -0.5,
+          "difference": -1.0,
+          "error": 1.0,
+          "logical_index": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "nonfinite_type": null,
+          "relative_term": 2.384185791015625e-07
+        },
+        "fixture_name": "batch2-non8x8",
+        "maximum_error": {
+          "error": 8492068930322432.0,
+          "logical_index": [
+            0,
+            0,
+            0,
+            1,
+            5,
+            1
+          ]
+        },
+        "minimum_margin_factor": 2.3841857910156255e-07,
+        "object_kind": "postcast_pool_float32",
+        "quarter_margin_pass": false,
+        "verdict": "device_failed"
+      },
+      "detected": true,
+      "execution_path": "candidate_device_operator",
+      "name": "sign_inversion"
+    },
+    {
+      "comparison": {
+        "audit": {
+          "comparator_code_sha256": "31f8dd6b5da2983d3aa3a2a7827ce27ce0a13dd92615c82d1c8ee8ec8d55caa0",
+          "comparator_version": "decision30-comparator-v1",
+          "cpu_formal_object_sha256": "b407f6b095d5c782d5747c6c3246129b5e5898ff5954a8990551f24f034fd3f5",
+          "cpu_input_hashes": {
+            "mask": "9f4f6892da33b22320f9c6312892145ae8f6a2e8937ecd2c5aedaa36c14db8a2",
+            "valid_counts": "1e7cebb0668b0d87277f2471dfe9bc6ccf736201f6f7517533f79406f2b216af",
+            "z": "e715192720d59015ce3e2eec1b4399595d003add20c3d75bb082f8a2094c0e2a"
+          },
+          "cpu_reference_id": "decision30-cpu-reference-v2",
+          "device_formal_object_sha256": "69d1d5a6d2e77ef8b54339b7fe2200a092c4c899e6174ee4552a397d32b0ee6d",
+          "device_input_hashes": {
+            "mask": "9f4f6892da33b22320f9c6312892145ae8f6a2e8937ecd2c5aedaa36c14db8a2",
+            "valid_counts": "1e7cebb0668b0d87277f2471dfe9bc6ccf736201f6f7517533f79406f2b216af",
+            "z": "e715192720d59015ce3e2eec1b4399595d003add20c3d75bb082f8a2094c0e2a"
+          },
+          "fixture_name": "batch2-non8x8",
+          "floating_point_environment": {
+            "binary64_daz_probe_preserved": true,
+            "binary64_ftz_probe_preserved": true,
+            "binary64_mantissa_bits": 53,
+            "float_rounds": 1,
+            "machine": "AMD64",
+            "operation_policy": "separate_binary64_operations_no_fma",
+            "python_implementation": "CPython",
+            "python_version": "3.10.18"
+          },
+          "formal_object_dtype": "torch.float64",
+          "formal_object_element_count": 18816,
+          "formal_object_shape": [
+            2,
+            4,
+            8,
+            7,
+            21,
+            2
+          ],
+          "run_id": "autograd-local-smoke",
+          "tested_device_id": "NVIDIA GeForce RTX 4060 Laptop GPU|GPU-ffe61d85-a9c4-0f97-19e9-1f866cb9403d",
+          "tolerance_constants": {
+            "atol": "0x1p-48",
+            "near_zero_threshold": "0x1p-40",
+            "rtol": "0x1p-47"
+          },
+          "tolerance_profile_version": "decision30-tolerances-v1"
+        },
+        "failing_element_count": 2,
+        "first_failure": {
+          "active_rule": "general",
+          "bound": 0.7619047619047724,
+          "cpu_value": 107228562556441.36,
+          "device_value": 107228562556440.38,
+          "difference": -0.984375,
+          "error": 0.984375,
+          "logical_index": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0
+          ],
+          "nonfinite_type": null,
+          "relative_term": 0.7619047619047689
+        },
+        "fixture_name": "batch2-non8x8",
+        "maximum_error": {
+          "error": 1.125,
+          "logical_index": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            1
+          ]
+        },
+        "minimum_margin_factor": 0.7648926237161638,
+        "object_kind": "precast_stats_float64",
+        "quarter_margin_pass": false,
+        "verdict": "device_failed"
+      },
+      "detected": true,
+      "execution_path": "candidate_device_operator",
+      "name": "wrong_reduction_order"
+    },
+    {
+      "comparison": {
+        "audit": {
+          "comparator_code_sha256": "31f8dd6b5da2983d3aa3a2a7827ce27ce0a13dd92615c82d1c8ee8ec8d55caa0",
+          "comparator_version": "decision30-comparator-v1",
+          "cpu_formal_object_sha256": "b407f6b095d5c782d5747c6c3246129b5e5898ff5954a8990551f24f034fd3f5",
+          "cpu_input_hashes": {
+            "mask": "9f4f6892da33b22320f9c6312892145ae8f6a2e8937ecd2c5aedaa36c14db8a2",
+            "valid_counts": "1e7cebb0668b0d87277f2471dfe9bc6ccf736201f6f7517533f79406f2b216af",
+            "z": "e715192720d59015ce3e2eec1b4399595d003add20c3d75bb082f8a2094c0e2a"
+          },
+          "cpu_reference_id": "decision30-cpu-reference-v2",
+          "device_formal_object_sha256": "1e5d1fb64c1c75eceb0f9f7bfcbbcee39f52aa7e8a9c30ae9c01fb8a8eb38155",
+          "device_input_hashes": {
+            "mask": "9f4f6892da33b22320f9c6312892145ae8f6a2e8937ecd2c5aedaa36c14db8a2",
+            "valid_counts": "1e7cebb0668b0d87277f2471dfe9bc6ccf736201f6f7517533f79406f2b216af",
+            "z": "e715192720d59015ce3e2eec1b4399595d003add20c3d75bb082f8a2094c0e2a"
+          },
+          "fixture_name": "batch2-non8x8",
+          "floating_point_environment": {
+            "binary64_daz_probe_preserved": true,
+            "binary64_ftz_probe_preserved": true,
+            "binary64_mantissa_bits": 53,
+            "float_rounds": 1,
+            "machine": "AMD64",
+            "operation_policy": "separate_binary64_operations_no_fma",
+            "python_implementation": "CPython",
+            "python_version": "3.10.18"
+          },
+          "formal_object_dtype": "torch.float64",
+          "formal_object_element_count": 18816,
+          "formal_object_shape": [
+            2,
+            4,
+            8,
+            7,
+            21,
+            2
+          ],
+          "run_id": "autograd-local-smoke",
+          "tested_device_id": "NVIDIA GeForce RTX 4060 Laptop GPU|GPU-ffe61d85-a9c4-0f97-19e9-1f866cb9403d",
+          "tolerance_constants": {
+            "atol": "0x1p-48",
+            "near_zero_threshold": "0x1p-40",
+            "rtol": "0x1p-47"
+          },
+          "tolerance_profile_version": "decision30-tolerances-v1"
+        },
+        "failing_element_count": 14505,
+        "first_failure": {
+          "active_rule": "general",
+          "bound": 0.7619047619047724,
+          "cpu_value": 107228562556441.36,
+          "device_value": 107228564553728.0,
+          "difference": 1997286.640625,
+          "error": 1997286.640625,
+          "logical_index": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0
+          ],
+          "nonfinite_type": null,
+          "relative_term": 0.7619047619047689
+        },
+        "fixture_name": "batch2-non8x8",
+        "maximum_error": {
+          "error": 251624755.0,
+          "logical_index": [
+            0,
+            0,
+            0,
+            1,
+            5,
+            1
+          ]
+        },
+        "minimum_margin_factor": 1.0596381291209747e-07,
+        "object_kind": "precast_stats_float64",
+        "quarter_margin_pass": false,
+        "verdict": "device_failed"
+      },
+      "detected": true,
+      "execution_path": "candidate_device_operator",
+      "name": "early_float32_conversion"
+    },
+    {
+      "comparison": {
+        "audit": {
+          "comparator_code_sha256": "31f8dd6b5da2983d3aa3a2a7827ce27ce0a13dd92615c82d1c8ee8ec8d55caa0",
+          "comparator_version": "decision30-comparator-v1",
+          "cpu_formal_object_sha256": "d799f48a82dc11d4e09fda37479845dfa790e11be698d4695afa968a8df6286b",
+          "cpu_input_hashes": {
+            "mask": "9f4f6892da33b22320f9c6312892145ae8f6a2e8937ecd2c5aedaa36c14db8a2",
+            "valid_counts": "1e7cebb0668b0d87277f2471dfe9bc6ccf736201f6f7517533f79406f2b216af",
+            "z": "e715192720d59015ce3e2eec1b4399595d003add20c3d75bb082f8a2094c0e2a"
+          },
+          "cpu_reference_id": "decision30-cpu-reference-v2",
+          "device_formal_object_sha256": "36589d77f4487a660d85b30d6c9f5ceb57ef091aea6ec0b168387d6c970a9eea",
+          "device_input_hashes": {
+            "mask": "9f4f6892da33b22320f9c6312892145ae8f6a2e8937ecd2c5aedaa36c14db8a2",
+            "valid_counts": "1e7cebb0668b0d87277f2471dfe9bc6ccf736201f6f7517533f79406f2b216af",
+            "z": "e715192720d59015ce3e2eec1b4399595d003add20c3d75bb082f8a2094c0e2a"
+          },
+          "fixture_name": "batch2-non8x8",
+          "floating_point_environment": {
+            "binary64_daz_probe_preserved": true,
+            "binary64_ftz_probe_preserved": true,
+            "binary64_mantissa_bits": 53,
+            "float_rounds": 1,
+            "machine": "AMD64",
+            "operation_policy": "separate_binary64_operations_no_fma",
+            "python_implementation": "CPython",
+            "python_version": "3.10.18"
+          },
+          "formal_object_dtype": "torch.float32",
+          "formal_object_element_count": 18816,
+          "formal_object_shape": [
+            2,
+            4,
+            8,
+            7,
+            21,
+            2
+          ],
+          "run_id": "autograd-local-smoke",
+          "tested_device_id": "NVIDIA GeForce RTX 4060 Laptop GPU|GPU-ffe61d85-a9c4-0f97-19e9-1f866cb9403d",
+          "tolerance_constants": {
+            "atol": "0x1p-22",
+            "near_zero_threshold": "0x1p-16",
+            "rtol": "0x1p-21"
+          },
+          "tolerance_profile_version": "decision30-tolerances-v1"
+        },
+        "failing_element_count": 1338,
+        "first_failure": {
+          "active_rule": "general",
+          "bound": 51130564.00000024,
+          "cpu_value": 107228564553728.0,
+          "device_value": 1.0,
+          "difference": -107228564553727.0,
+          "error": 107228564553727.0,
+          "logical_index": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0
+          ],
+          "nonfinite_type": null,
+          "relative_term": 51130564.0
+        },
+        "fixture_name": "batch2-non8x8",
+        "maximum_error": {
+          "error": 4246034465161216.0,
+          "logical_index": [
+            0,
+            0,
+            0,
+            1,
+            5,
+            1
+          ]
+        },
+        "minimum_margin_factor": 4.768371582031251e-07,
+        "object_kind": "postcast_pool_float32",
+        "quarter_margin_pass": false,
+        "verdict": "device_failed"
+      },
+      "detected": true,
+      "execution_path": "candidate_device_operator",
+      "name": "wrong_mask_selection"
+    },
+    {
+      "comparison": {
+        "audit": {
+          "comparator_code_sha256": "31f8dd6b5da2983d3aa3a2a7827ce27ce0a13dd92615c82d1c8ee8ec8d55caa0",
+          "comparator_version": "decision30-comparator-v1",
+          "cpu_formal_object_sha256": "754d96475803f961e4aafab98377bb58006f25e4c177608e66aee78dc5d6e2f2",
+          "cpu_input_hashes": {
+            "mask": "9f4f6892da33b22320f9c6312892145ae8f6a2e8937ecd2c5aedaa36c14db8a2",
+            "upstream_g": "d0677d273929b7dfbcf54298d6bcc56e07c4b31145c9fd93437029d558bd184c",
+            "valid_counts": "1e7cebb0668b0d87277f2471dfe9bc6ccf736201f6f7517533f79406f2b216af",
+            "z": "e715192720d59015ce3e2eec1b4399595d003add20c3d75bb082f8a2094c0e2a"
+          },
+          "cpu_reference_id": "decision30-cpu-reference-v2",
+          "device_formal_object_sha256": "d91808e415b8a8fc9784d8696ace564146d97319fec24f86c6508fb851a36276",
+          "device_input_hashes": {
+            "mask": "9f4f6892da33b22320f9c6312892145ae8f6a2e8937ecd2c5aedaa36c14db8a2",
+            "upstream_g": "d0677d273929b7dfbcf54298d6bcc56e07c4b31145c9fd93437029d558bd184c",
+            "valid_counts": "1e7cebb0668b0d87277f2471dfe9bc6ccf736201f6f7517533f79406f2b216af",
+            "z": "e715192720d59015ce3e2eec1b4399595d003add20c3d75bb082f8a2094c0e2a"
+          },
+          "fixture_name": "joint_signed",
+          "floating_point_environment": {
+            "binary64_daz_probe_preserved": true,
+            "binary64_ftz_probe_preserved": true,
+            "binary64_mantissa_bits": 53,
+            "float_rounds": 1,
+            "machine": "AMD64",
+            "operation_policy": "separate_binary64_operations_no_fma",
+            "python_implementation": "CPython",
+            "python_version": "3.10.18"
+          },
+          "formal_object_dtype": "torch.float32",
+          "formal_object_element_count": 44352,
+          "formal_object_shape": [
+            2,
+            4,
+            8,
+            7,
+            9,
+            11
+          ],
+          "run_id": "autograd-local-smoke",
+          "tested_device_id": "NVIDIA GeForce RTX 4060 Laptop GPU|GPU-ffe61d85-a9c4-0f97-19e9-1f866cb9403d",
+          "tolerance_constants": {
+            "atol": "0x1p-21",
+            "near_zero_threshold": "0x1p-16",
+            "rtol": "0x1p-19"
+          },
+          "tolerance_profile_version": "decision30-tolerances-v1"
+        },
+        "failing_element_count": 2,
+        "first_failure": {
+          "active_rule": "general",
+          "bound": 8.451504527329234e-07,
+          "cpu_value": -0.19310224056243896,
+          "device_value": 0.0,
+          "difference": 0.19310224056243896,
+          "error": 0.19310224056243896,
+          "logical_index": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "nonfinite_type": null,
+          "relative_term": 3.6831329452979844e-07
+        },
+        "fixture_name": "joint_signed",
+        "maximum_error": {
+          "error": 0.19310224056243896,
+          "logical_index": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ]
+        },
+        "minimum_margin_factor": 3.689846594870405e-06,
+        "object_kind": "dz_float32",
+        "quarter_margin_pass": false,
+        "verdict": "device_failed"
+      },
+      "detected": true,
+      "execution_path": "candidate_device_operator",
+      "name": "single_point_spatial_misalignment"
+    },
+    {
+      "comparison": {
+        "audit": {
+          "comparator_code_sha256": "31f8dd6b5da2983d3aa3a2a7827ce27ce0a13dd92615c82d1c8ee8ec8d55caa0",
+          "comparator_version": "decision30-comparator-v1",
+          "cpu_formal_object_sha256": "fe42c30897e9849950b4bfe35743bf22b979762fe930b16206ff0d451de0bcaa",
+          "cpu_input_hashes": {
+            "mask": "9f4f6892da33b22320f9c6312892145ae8f6a2e8937ecd2c5aedaa36c14db8a2",
+            "upstream_g": "9dbfa92f7869550a76cd811c0c02631bd1c998889ad0d211e8339bdd6508a807",
+            "valid_counts": "1e7cebb0668b0d87277f2471dfe9bc6ccf736201f6f7517533f79406f2b216af",
+            "z": "e715192720d59015ce3e2eec1b4399595d003add20c3d75bb082f8a2094c0e2a"
+          },
+          "cpu_reference_id": "decision30-cpu-reference-v2",
+          "device_formal_object_sha256": "4a02712243bbb10c80c4906b5fd3d1390ac4155744f6aa7d310fd6e53d2e3f9b",
+          "device_input_hashes": {
+            "mask": "9f4f6892da33b22320f9c6312892145ae8f6a2e8937ecd2c5aedaa36c14db8a2",
+            "upstream_g": "9dbfa92f7869550a76cd811c0c02631bd1c998889ad0d211e8339bdd6508a807",
+            "valid_counts": "1e7cebb0668b0d87277f2471dfe9bc6ccf736201f6f7517533f79406f2b216af",
+            "z": "e715192720d59015ce3e2eec1b4399595d003add20c3d75bb082f8a2094c0e2a"
+          },
+          "fixture_name": "std_only",
+          "floating_point_environment": {
+            "binary64_daz_probe_preserved": true,
+            "binary64_ftz_probe_preserved": true,
+            "binary64_mantissa_bits": 53,
+            "float_rounds": 1,
+            "machine": "AMD64",
+            "operation_policy": "separate_binary64_operations_no_fma",
+            "python_implementation": "CPython",
+            "python_version": "3.10.18"
+          },
+          "formal_object_dtype": "torch.float32",
+          "formal_object_element_count": 44352,
+          "formal_object_shape": [
+            2,
+            4,
+            8,
+            7,
+            9,
+            11
+          ],
+          "run_id": "autograd-local-smoke",
+          "tested_device_id": "NVIDIA GeForce RTX 4060 Laptop GPU|GPU-ffe61d85-a9c4-0f97-19e9-1f866cb9403d",
+          "tolerance_constants": {
+            "atol": "0x1p-21",
+            "near_zero_threshold": "0x1p-16",
+            "rtol": "0x1p-19"
+          },
+          "tolerance_profile_version": "decision30-tolerances-v1"
+        },
+        "failing_element_count": 331,
+        "first_failure": {
+          "active_rule": "exact_zero",
+          "bound": 4.76837158203125e-07,
+          "cpu_value": 0.0,
+          "device_value": 0.4040616452693939,
+          "difference": 0.4040616452693939,
+          "error": 0.4040616452693939,
+          "logical_index": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "nonfinite_type": null,
+          "relative_term": 0.0
+        },
+        "fixture_name": "std_only",
+        "maximum_error": {
+          "error": 0.4040616452693939,
+          "logical_index": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ]
+        },
+        "minimum_margin_factor": 0.0,
+        "object_kind": "dz_float32",
+        "quarter_margin_pass": false,
+        "verdict": "device_failed"
+      },
+      "detected": true,
+      "execution_path": "candidate_device_operator",
+      "name": "zero_variance_backward_violation"
+    }
+  ],
+  "object_reports": [
+    {
+      "audit": {
+        "comparator_code_sha256": "31f8dd6b5da2983d3aa3a2a7827ce27ce0a13dd92615c82d1c8ee8ec8d55caa0",
+        "comparator_version": "decision30-comparator-v1",
+        "cpu_formal_object_sha256": "b407f6b095d5c782d5747c6c3246129b5e5898ff5954a8990551f24f034fd3f5",
+        "cpu_input_hashes": {
+          "mask": "9f4f6892da33b22320f9c6312892145ae8f6a2e8937ecd2c5aedaa36c14db8a2",
+          "valid_counts": "1e7cebb0668b0d87277f2471dfe9bc6ccf736201f6f7517533f79406f2b216af",
+          "z": "e715192720d59015ce3e2eec1b4399595d003add20c3d75bb082f8a2094c0e2a"
+        },
+        "cpu_reference_id": "decision30-cpu-reference-v2",
+        "device_formal_object_sha256": "9d00567d2f938f93bd73fea55745f17e6a4e1754c9fa30358e3c2358ac237167",
+        "device_input_hashes": {
+          "mask": "9f4f6892da33b22320f9c6312892145ae8f6a2e8937ecd2c5aedaa36c14db8a2",
+          "valid_counts": "1e7cebb0668b0d87277f2471dfe9bc6ccf736201f6f7517533f79406f2b216af",
+          "z": "e715192720d59015ce3e2eec1b4399595d003add20c3d75bb082f8a2094c0e2a"
+        },
+        "fixture_name": "batch2-non8x8",
+        "floating_point_environment": {
+          "binary64_daz_probe_preserved": true,
+          "binary64_ftz_probe_preserved": true,
+          "binary64_mantissa_bits": 53,
+          "float_rounds": 1,
+          "machine": "AMD64",
+          "operation_policy": "separate_binary64_operations_no_fma",
+          "python_implementation": "CPython",
+          "python_version": "3.10.18"
+        },
+        "formal_object_dtype": "torch.float64",
+        "formal_object_element_count": 18816,
+        "formal_object_shape": [
+          2,
+          4,
+          8,
+          7,
+          21,
+          2
+        ],
+        "run_id": "autograd-local-smoke",
+        "tested_device_id": "NVIDIA GeForce RTX 4060 Laptop GPU|GPU-ffe61d85-a9c4-0f97-19e9-1f866cb9403d",
+        "tolerance_constants": {
+          "atol": "0x1p-48",
+          "near_zero_threshold": "0x1p-40",
+          "rtol": "0x1p-47"
+        },
+        "tolerance_profile_version": "decision30-tolerances-v1"
+      },
+      "failing_element_count": 0,
+      "first_failure": null,
+      "fixture_name": "batch2-non8x8",
+      "maximum_error": {
+        "error": 5.551115123125783e-17,
+        "logical_index": [
+          0,
+          0,
+          5,
+          3,
+          1,
+          1
+        ]
+      },
+      "minimum_margin_factor": 112.33232464347412,
+      "object_kind": "precast_stats_float64",
+      "quarter_margin_pass": true,
+      "verdict": "passed"
+    },
+    {
+      "audit": {
+        "comparator_code_sha256": "31f8dd6b5da2983d3aa3a2a7827ce27ce0a13dd92615c82d1c8ee8ec8d55caa0",
+        "comparator_version": "decision30-comparator-v1",
+        "cpu_formal_object_sha256": "d799f48a82dc11d4e09fda37479845dfa790e11be698d4695afa968a8df6286b",
+        "cpu_input_hashes": {
+          "mask": "9f4f6892da33b22320f9c6312892145ae8f6a2e8937ecd2c5aedaa36c14db8a2",
+          "valid_counts": "1e7cebb0668b0d87277f2471dfe9bc6ccf736201f6f7517533f79406f2b216af",
+          "z": "e715192720d59015ce3e2eec1b4399595d003add20c3d75bb082f8a2094c0e2a"
+        },
+        "cpu_reference_id": "decision30-cpu-reference-v2",
+        "device_formal_object_sha256": "d799f48a82dc11d4e09fda37479845dfa790e11be698d4695afa968a8df6286b",
+        "device_input_hashes": {
+          "mask": "9f4f6892da33b22320f9c6312892145ae8f6a2e8937ecd2c5aedaa36c14db8a2",
+          "valid_counts": "1e7cebb0668b0d87277f2471dfe9bc6ccf736201f6f7517533f79406f2b216af",
+          "z": "e715192720d59015ce3e2eec1b4399595d003add20c3d75bb082f8a2094c0e2a"
+        },
+        "fixture_name": "batch2-non8x8",
+        "floating_point_environment": {
+          "binary64_daz_probe_preserved": true,
+          "binary64_ftz_probe_preserved": true,
+          "binary64_mantissa_bits": 53,
+          "float_rounds": 1,
+          "machine": "AMD64",
+          "operation_policy": "separate_binary64_operations_no_fma",
+          "python_implementation": "CPython",
+          "python_version": "3.10.18"
+        },
+        "formal_object_dtype": "torch.float32",
+        "formal_object_element_count": 18816,
+        "formal_object_shape": [
+          2,
+          4,
+          8,
+          7,
+          21,
+          2
+        ],
+        "run_id": "autograd-local-smoke",
+        "tested_device_id": "NVIDIA GeForce RTX 4060 Laptop GPU|GPU-ffe61d85-a9c4-0f97-19e9-1f866cb9403d",
+        "tolerance_constants": {
+          "atol": "0x1p-22",
+          "near_zero_threshold": "0x1p-16",
+          "rtol": "0x1p-21"
+        },
+        "tolerance_profile_version": "decision30-tolerances-v1"
+      },
+      "failing_element_count": 0,
+      "first_failure": null,
+      "fixture_name": "batch2-non8x8",
+      "maximum_error": {
+        "error": 0.0,
+        "logical_index": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "minimum_margin_factor": null,
+      "object_kind": "postcast_pool_float32",
+      "quarter_margin_pass": true,
+      "verdict": "passed"
+    },
+    {
+      "audit": {
+        "comparator_code_sha256": "31f8dd6b5da2983d3aa3a2a7827ce27ce0a13dd92615c82d1c8ee8ec8d55caa0",
+        "comparator_version": "decision30-comparator-v1",
+        "cpu_formal_object_sha256": "e0157b36947c6360745ef3e743e7385bf7d5fbcc24ad994076cb87bd6e747476",
+        "cpu_input_hashes": {
+          "mask": "9f4f6892da33b22320f9c6312892145ae8f6a2e8937ecd2c5aedaa36c14db8a2",
+          "upstream_g": "b7eb4a0e2aea165a5e8efd807a615edf1256df072d9a24f05ca5562e765b82e4",
+          "valid_counts": "1e7cebb0668b0d87277f2471dfe9bc6ccf736201f6f7517533f79406f2b216af",
+          "z": "e715192720d59015ce3e2eec1b4399595d003add20c3d75bb082f8a2094c0e2a"
+        },
+        "cpu_reference_id": "decision30-cpu-reference-v2",
+        "device_formal_object_sha256": "9a2b0148d3462b53750f0e4a583ffa016609a0b8afc4c174f5b631492f33fd21",
+        "device_input_hashes": {
+          "mask": "9f4f6892da33b22320f9c6312892145ae8f6a2e8937ecd2c5aedaa36c14db8a2",
+          "upstream_g": "b7eb4a0e2aea165a5e8efd807a615edf1256df072d9a24f05ca5562e765b82e4",
+          "valid_counts": "1e7cebb0668b0d87277f2471dfe9bc6ccf736201f6f7517533f79406f2b216af",
+          "z": "e715192720d59015ce3e2eec1b4399595d003add20c3d75bb082f8a2094c0e2a"
+        },
+        "fixture_name": "mean_only",
+        "floating_point_environment": {
+          "binary64_daz_probe_preserved": true,
+          "binary64_ftz_probe_preserved": true,
+          "binary64_mantissa_bits": 53,
+          "float_rounds": 1,
+          "machine": "AMD64",
+          "operation_policy": "separate_binary64_operations_no_fma",
+          "python_implementation": "CPython",
+          "python_version": "3.10.18"
+        },
+        "formal_object_dtype": "torch.float32",
+        "formal_object_element_count": 44352,
+        "formal_object_shape": [
+          2,
+          4,
+          8,
+          7,
+          9,
+          11
+        ],
+        "run_id": "autograd-local-smoke",
+        "tested_device_id": "NVIDIA GeForce RTX 4060 Laptop GPU|GPU-ffe61d85-a9c4-0f97-19e9-1f866cb9403d",
+        "tolerance_constants": {
+          "atol": "0x1p-21",
+          "near_zero_threshold": "0x1p-16",
+          "rtol": "0x1p-19"
+        },
+        "tolerance_profile_version": "decision30-tolerances-v1"
+      },
+      "failing_element_count": 0,
+      "first_failure": null,
+      "fixture_name": "mean_only",
+      "maximum_error": {
+        "error": 2.9802322387695312e-08,
+        "logical_index": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "minimum_margin_factor": 33.32661056518555,
+      "object_kind": "dz_float32",
+      "quarter_margin_pass": true,
+      "verdict": "passed"
+    },
+    {
+      "audit": {
+        "comparator_code_sha256": "31f8dd6b5da2983d3aa3a2a7827ce27ce0a13dd92615c82d1c8ee8ec8d55caa0",
+        "comparator_version": "decision30-comparator-v1",
+        "cpu_formal_object_sha256": "fe42c30897e9849950b4bfe35743bf22b979762fe930b16206ff0d451de0bcaa",
+        "cpu_input_hashes": {
+          "mask": "9f4f6892da33b22320f9c6312892145ae8f6a2e8937ecd2c5aedaa36c14db8a2",
+          "upstream_g": "9dbfa92f7869550a76cd811c0c02631bd1c998889ad0d211e8339bdd6508a807",
+          "valid_counts": "1e7cebb0668b0d87277f2471dfe9bc6ccf736201f6f7517533f79406f2b216af",
+          "z": "e715192720d59015ce3e2eec1b4399595d003add20c3d75bb082f8a2094c0e2a"
+        },
+        "cpu_reference_id": "decision30-cpu-reference-v2",
+        "device_formal_object_sha256": "f22f8893e9118d3dedcb111a846db6770ba2ff588750aa96d9df51646c2e299b",
+        "device_input_hashes": {
+          "mask": "9f4f6892da33b22320f9c6312892145ae8f6a2e8937ecd2c5aedaa36c14db8a2",
+          "upstream_g": "9dbfa92f7869550a76cd811c0c02631bd1c998889ad0d211e8339bdd6508a807",
+          "valid_counts": "1e7cebb0668b0d87277f2471dfe9bc6ccf736201f6f7517533f79406f2b216af",
+          "z": "e715192720d59015ce3e2eec1b4399595d003add20c3d75bb082f8a2094c0e2a"
+        },
+        "fixture_name": "std_only",
+        "floating_point_environment": {
+          "binary64_daz_probe_preserved": true,
+          "binary64_ftz_probe_preserved": true,
+          "binary64_mantissa_bits": 53,
+          "float_rounds": 1,
+          "machine": "AMD64",
+          "operation_policy": "separate_binary64_operations_no_fma",
+          "python_implementation": "CPython",
+          "python_version": "3.10.18"
+        },
+        "formal_object_dtype": "torch.float32",
+        "formal_object_element_count": 44352,
+        "formal_object_shape": [
+          2,
+          4,
+          8,
+          7,
+          9,
+          11
+        ],
+        "run_id": "autograd-local-smoke",
+        "tested_device_id": "NVIDIA GeForce RTX 4060 Laptop GPU|GPU-ffe61d85-a9c4-0f97-19e9-1f866cb9403d",
+        "tolerance_constants": {
+          "atol": "0x1p-21",
+          "near_zero_threshold": "0x1p-16",
+          "rtol": "0x1p-19"
+        },
+        "tolerance_profile_version": "decision30-tolerances-v1"
+      },
+      "failing_element_count": 0,
+      "first_failure": null,
+      "fixture_name": "std_only",
+      "maximum_error": {
+        "error": 5.960464477539063e-08,
+        "logical_index": [
+          0,
+          0,
+          0,
+          1,
+          0,
+          1
+        ]
+      },
+      "minimum_margin_factor": 18.72938346862793,
+      "object_kind": "dz_float32",
+      "quarter_margin_pass": true,
+      "verdict": "passed"
+    },
+    {
+      "audit": {
+        "comparator_code_sha256": "31f8dd6b5da2983d3aa3a2a7827ce27ce0a13dd92615c82d1c8ee8ec8d55caa0",
+        "comparator_version": "decision30-comparator-v1",
+        "cpu_formal_object_sha256": "754d96475803f961e4aafab98377bb58006f25e4c177608e66aee78dc5d6e2f2",
+        "cpu_input_hashes": {
+          "mask": "9f4f6892da33b22320f9c6312892145ae8f6a2e8937ecd2c5aedaa36c14db8a2",
+          "upstream_g": "d0677d273929b7dfbcf54298d6bcc56e07c4b31145c9fd93437029d558bd184c",
+          "valid_counts": "1e7cebb0668b0d87277f2471dfe9bc6ccf736201f6f7517533f79406f2b216af",
+          "z": "e715192720d59015ce3e2eec1b4399595d003add20c3d75bb082f8a2094c0e2a"
+        },
+        "cpu_reference_id": "decision30-cpu-reference-v2",
+        "device_formal_object_sha256": "82769ace3a98f3c3bd83a8d89c2e6e67b5b6ae94af4845e2c0d68cf6d7016d47",
+        "device_input_hashes": {
+          "mask": "9f4f6892da33b22320f9c6312892145ae8f6a2e8937ecd2c5aedaa36c14db8a2",
+          "upstream_g": "d0677d273929b7dfbcf54298d6bcc56e07c4b31145c9fd93437029d558bd184c",
+          "valid_counts": "1e7cebb0668b0d87277f2471dfe9bc6ccf736201f6f7517533f79406f2b216af",
+          "z": "e715192720d59015ce3e2eec1b4399595d003add20c3d75bb082f8a2094c0e2a"
+        },
+        "fixture_name": "joint_signed",
+        "floating_point_environment": {
+          "binary64_daz_probe_preserved": true,
+          "binary64_ftz_probe_preserved": true,
+          "binary64_mantissa_bits": 53,
+          "float_rounds": 1,
+          "machine": "AMD64",
+          "operation_policy": "separate_binary64_operations_no_fma",
+          "python_implementation": "CPython",
+          "python_version": "3.10.18"
+        },
+        "formal_object_dtype": "torch.float32",
+        "formal_object_element_count": 44352,
+        "formal_object_shape": [
+          2,
+          4,
+          8,
+          7,
+          9,
+          11
+        ],
+        "run_id": "autograd-local-smoke",
+        "tested_device_id": "NVIDIA GeForce RTX 4060 Laptop GPU|GPU-ffe61d85-a9c4-0f97-19e9-1f866cb9403d",
+        "tolerance_constants": {
+          "atol": "0x1p-21",
+          "near_zero_threshold": "0x1p-16",
+          "rtol": "0x1p-19"
+        },
+        "tolerance_profile_version": "decision30-tolerances-v1"
+      },
+      "failing_element_count": 0,
+      "first_failure": null,
+      "fixture_name": "joint_signed",
+      "maximum_error": {
+        "error": 5.960464477539063e-08,
+        "logical_index": [
+          0,
+          0,
+          3,
+          5,
+          1,
+          1
+        ]
+      },
+      "minimum_margin_factor": 24.119810104370117,
+      "object_kind": "dz_float32",
+      "quarter_margin_pass": true,
+      "verdict": "passed"
+    }
+  ],
+  "overall_pass": true,
+  "run_id": "autograd-local-smoke",
+  "smoke_pass": true,
+  "zero_variance_evidence": {
+    "all_backward_results_finite": true,
+    "forward_std_exact_zero": true,
+    "joint_dz_has_nonzero": true,
+    "mean_only_dz_has_nonzero": true,
+    "std_only_zero_variance_dz_exact_zero": true
+  }
+}

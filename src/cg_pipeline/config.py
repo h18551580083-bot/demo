@@ -150,7 +150,7 @@ _EXACT_VALUES: dict[tuple[str, str], Any] = {
     ("training", "epsilon"): "0.00000001",
     ("training", "weight_decay"): "0.0001",
     ("training", "scheduler"): "none",
-    ("training", "batch_size"): 32,
+    ("training", "batch_size"): 16,
     ("training", "max_epochs"): 20,
     ("training", "early_stopping_patience"): 5,
     ("training", "early_stopping_min_delta"): "0",

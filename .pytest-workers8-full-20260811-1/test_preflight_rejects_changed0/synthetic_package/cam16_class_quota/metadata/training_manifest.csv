@@ -1,5 +1,0 @@
-patch_id,patch_path,split,slide_id,label,label_name,patch_label,slide_label
-fixture-train-replaced,patches/train/normal/fixture-train-normal.png,train,slide-train-normal,0,normal,normal,normal
-fixture-train-tumor,patches/train/tumor/fixture-train-tumor.png,train,slide-train-tumor,1,tumor,tumor,tumor
-fixture-val-normal,patches/val/normal/fixture-val-normal.png,val,slide-val-normal,0,normal,normal,normal
-fixture-val-tumor,patches/val/tumor/fixture-val-tumor.png,val,slide-val-tumor,1,tumor,tumor,tumor

@@ -244,15 +244,15 @@ class _CountingDataset:
 
 @pytest.mark.parametrize(
     ("row_count", "expected_batch_count"),
-    [(79_570, 2_487), (18_171, 568)],
+    [(79_570, 4_974), (18_171, 1_136)],
 )
-def test_batch32_retains_every_train_and_validation_row_exactly_once(
+def test_batch16_retains_every_train_and_validation_row_exactly_once(
     row_count: int, expected_batch_count: int
 ) -> None:
     dataset = _CountingDataset(row_count)
     loader = build_dataloader(
         dataset,  # type: ignore[arg-type]
-        batch_size=32,
+        batch_size=16,
         seed=1729,
         epoch=0,
         num_workers=0,
@@ -260,7 +260,7 @@ def test_batch32_retains_every_train_and_validation_row_exactly_once(
 
     observed = [patch_id for batch in loader for patch_id in batch["patch_id"]]
 
-    assert loader.batch_size == 32
+    assert loader.batch_size == 16
     assert loader.drop_last is False
     assert len(loader) == expected_batch_count
     assert len(observed) == row_count
