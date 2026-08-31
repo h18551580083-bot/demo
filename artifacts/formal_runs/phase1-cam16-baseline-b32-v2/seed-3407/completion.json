@@ -1,0 +1,14 @@
+{
+  "automatic_retry": false,
+  "best_epoch": 1,
+  "best_validation_slide_auroc": 0.865909090909091,
+  "epochs_completed": 7,
+  "isolation_claim": "group_id/slide_id split isolation verified",
+  "patient_level_claim_allowed": false,
+  "patient_level_isolation": "not_evaluated",
+  "run_id": "phase1-cam16-baseline-b32-v2",
+  "schema": "formal-seed-completion-v1",
+  "seed": 3407,
+  "status": "complete",
+  "test_split_accessed": false
+}
