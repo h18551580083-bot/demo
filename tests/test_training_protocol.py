@@ -314,8 +314,8 @@ def test_multi_seed_aggregation_excludes_failed_runs_and_reports_individuals() -
     result = aggregate_seed_results(
         (
             {"seed": 1729, "status": "complete", "best_validation_slide_auroc": 1.0},
-            {"seed": 3407, "status": "failed", "failure_reason": "device_error"},
-            {"seed": 7919, "status": "complete", "best_validation_slide_auroc": 0.5},
+            {"seed": 3407, "status": "complete", "best_validation_slide_auroc": 0.5},
+            {"seed": 1, "status": "failed", "failure_reason": "device_error"},
         )
     )
 
@@ -323,7 +323,7 @@ def test_multi_seed_aggregation_excludes_failed_runs_and_reports_individuals() -
     assert result["failed_seed_count"] == 1
     assert result["mean"] == 0.75
     assert result["sample_standard_deviation"] == pytest.approx(2**-1.5)
-    assert result["individual"] == [{"seed": 1729, "value": 1.0}, {"seed": 7919, "value": 0.5}]
+    assert result["individual"] == [{"seed": 1729, "value": 1.0}, {"seed": 3407, "value": 0.5}]
 
 
 def test_formal_epoch_reports_duration_and_existing_metrics(

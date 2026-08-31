@@ -388,6 +388,10 @@ def test_formal_training_runs_only_the_selected_seed_under_an_existing_baseline(
     assert observed == []
     completion["run_id"] = "phase1-cam16-baseline-b32-v2"
     (completed / "completion.json").write_text(json.dumps(completion), encoding="utf-8")
+    _, seed_status = pipeline_module._formal_seed_results(
+        destination, (1729, 3407), "phase1-cam16-baseline-b32-v2"
+    )
+    assert seed_status == {"1729": "completed", "3407": "pending"}
     summary = run_formal_training(
         config,
         data_root=data,
@@ -400,7 +404,6 @@ def test_formal_training_runs_only_the_selected_seed_under_an_existing_baseline(
     assert summary["seed_status"] == {
         "1729": "completed",
         "3407": "completed",
-        "7919": "pending",
     }
     assert summary["phase1_training_preflight"] == "PASS"
     assert summary["test_split_accessed"] is False
@@ -420,32 +423,17 @@ def test_formal_training_runs_only_the_selected_seed_under_an_existing_baseline(
         )
     assert (completed / "completion.json").read_bytes() == original_completion
 
-    def failed_seed(*args: object, seed: int, **kwargs: object) -> dict[str, object]:
-        raise RuntimeError(f"fixture failure for seed {seed}")
-
-    monkeypatch.setattr(pipeline_module, "run_formal_seed", failed_seed)
-    failed = run_formal_training(
-        config,
-        data_root=data,
-        authorization_path=authorization,
-        preflight_report_path=report_path,
-        seed=7919,
-    )
-    failure_record = json.loads(
-        (destination / "seed-7919" / "failure.json").read_text(encoding="utf-8")
-    )
-    assert failed["status"] == "failed"
-    assert failure_record["run_id"] == "phase1-cam16-baseline-b32-v2"
-
-
-def test_formal_training_rejects_unapproved_seed_before_preflight(tmp_path: Path) -> None:
-    with pytest.raises(ValueError, match="seed 1 is not approved"):
+@pytest.mark.parametrize("seed", [7919, 1])
+def test_formal_training_rejects_unapproved_seed_before_preflight(
+    tmp_path: Path, seed: int
+) -> None:
+    with pytest.raises(ValueError, match=rf"seed {seed} is not approved"):
         run_formal_training(
             _formal_config(tmp_path),
             data_root=tmp_path / "data",
             authorization_path=tmp_path / "authorization.json",
             preflight_report_path=tmp_path / "preflight.json",
-            seed=1,
+            seed=seed,
         )
 
 

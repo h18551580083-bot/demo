@@ -58,7 +58,7 @@ to `artifacts/exploratory_runs/<run_id>/` and every report/checkpoint records
 results cannot be relabelled or automatically promoted to formal results.
 
 Formal training remains authorization- and preflight-gated, immutable, and
-non-overwriting. Seeds `1729`, `3407`, and `7919` are repeats under the same formal
+non-overwriting. Seeds `1729` and `3407` are repeats under the same formal
 baseline, while each invocation runs only the seed passed through `--seed`. Git
 state, tags, code identity, config identity, and report
 checksums are not startup gates. Both modes construct only train and validation
@@ -120,7 +120,7 @@ through `--authorization` is a lightweight authorization record.
 
 The active formal run is `phase1-cam16-baseline-b32-v2`, with batch size 32,
 2,487 train updates per complete epoch, and at most 49,740 updates over 20 epochs.
-Its approved seeds are `1729`, `3407`, and `7919`; they share this Run ID and
+Its approved seeds are `1729` and `3407`; they share this Run ID and
 `artifacts/formal_runs/phase1-cam16-baseline-b32-v2/` output root.
 Run the controlled checklist in `docs/PHASE1_TRAINING_RUNBOOK.md` with the current
 lightweight authorization record.

@@ -158,7 +158,7 @@ _EXACT_VALUES: dict[tuple[str, str], Any] = {
     ("training", "checkpoint_tie_break"): "earliest_epoch",
     ("training", "class_imbalance"): "uniform-unweighted",
     ("training", "gradient_clip"): "none",
-    ("training", "seeds"): [1729, 3407, 7919],
+    ("training", "seeds"): [1729, 3407],
     ("training", "sampler"): "hash-order-once-per-epoch",
     ("training", "num_workers"): 8,
     ("training", "checkpoint_save"): "every-complete-epoch-immutable",

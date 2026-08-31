@@ -35,7 +35,7 @@ isolation, CUDA, fixed frontend and Morlet checks, optimizer ownership, fixed se
 complete epochs, validation checkpoint selection, immutable outputs, and provenance.
 Git state, tags, commit paths, code identity, and config identity are not gates. Test
 access remains prohibited for both modes pending separate final-once authorization.
-The formal baseline approves seeds `1729`, `3407`, and `7919`, but one
+The formal baseline approves seeds `1729` and `3407`, but one
 `formal-train` invocation executes exactly one approved `--seed`. These are repeat
 runs under `phase1-cam16-baseline-b32-v2`, not separate experiment identities.
 
@@ -59,7 +59,7 @@ runs under `phase1-cam16-baseline-b32-v2`, not separate experiment identities.
 | Class imbalance | uniform unweighted rows; no resampling and no class/loss weight |
 | Augmentation | none, including no stain, color, geometric, mix, or test-time augmentation |
 | Gradient clipping | none |
-| Seeds | `1729`, `3407`, `7919` |
+| Seeds | `1729`, `3407` |
 | Failed run | record and exclude; no automatic retry or replacement seed |
 | Multi-seed report | every valid seed, arithmetic mean, and sample standard deviation |
 | Resume | explicit `--resume`; continuous checkpoint/report pairs and matching data, fixed frontend, model, optimizer, seed, and epoch state |

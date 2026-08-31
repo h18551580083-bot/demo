@@ -27,7 +27,7 @@ export PREFLIGHT_REPORT="artifacts/preflight/${RELEASE_ID}/preflight.json"
 export FORMAL_OUTPUT="artifacts/formal_runs/${RUN_ID}"
 export SEED="3407"
 test -d "$DATA_ROOT"
-case "$SEED" in 1729|3407|7919) ;; *) exit 1 ;; esac
+case "$SEED" in 1729|3407) ;; *) exit 1 ;; esac
 ```
 
 `DATA_ROOT` must already contain the approved package. Do not create aliases for a
@@ -70,7 +70,7 @@ test images or start training.
 
 ## 5. Confirm the selected seed destination is new
 
-The Run ID and output root are shared by all three approved seeds. The completed
+The Run ID and output root are shared by both approved seeds. The completed
 `seed-1729` artifacts remain in place; only the selected seed directory must be absent:
 
 ```bash

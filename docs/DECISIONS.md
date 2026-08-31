@@ -1791,3 +1791,15 @@ Human-approved governance change:
 - The completed seed `1729` result remains part of that baseline. This scheduling
   change does not alter the model, data, optimizer, batch size, or any other
   scientific experiment contract.
+
+## 2026-08-31 — Set the Phase 1 formal baseline to two seeds
+
+- The Phase 1 formal baseline remains `phase1-cam16-baseline-b32-v2` with
+  `batch_size = 32`, but its approved repeats are reduced to seeds `1729` and
+  `3407`.
+- Each `formal-train` invocation still executes exactly one approved `--seed`.
+  The completed seed `1729` result remains valid, so only seed `3407` remains to
+  be run for this baseline.
+- This change only reduces the number of formal seed repeats. It does not alter
+  the model, data split, batch size, optimizer, learning rate, epoch budget,
+  early stopping, or evaluation contract.

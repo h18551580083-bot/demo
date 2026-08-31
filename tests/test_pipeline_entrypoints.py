@@ -60,7 +60,7 @@ def test_repository_formal_and_exploratory_configs_are_machine_validated() -> No
     assert formal.execution_kind == "formal_train"
     assert exploratory.execution_kind == "exploratory_train"
     assert formal.execution["allow_test"] is exploratory.execution["allow_test"] is False
-    assert formal.training["seeds"] == (1729, 3407, 7919)
+    assert formal.training["seeds"] == (1729, 3407)
     assert formal.training["batch_size"] == 32
     assert exploratory.training["seeds"] == (1729,)
     assert formal.training["num_workers"] == exploratory.training["num_workers"] == 8
@@ -203,6 +203,6 @@ def test_formal_cli_requires_and_forwards_one_seed(
 
     assert main([*arguments, "--seed", "3407"]) == 0
     assert captured["seed"] == 3407
-    assert main([*arguments, "--seed", "7919"]) == 3
+    assert main([*arguments, "--seed", "1729"]) == 3
     with pytest.raises(SystemExit):
         main(arguments)
