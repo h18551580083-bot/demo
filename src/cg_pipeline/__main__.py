@@ -49,6 +49,7 @@ def _parser() -> argparse.ArgumentParser:
     train.add_argument("--data-root", type=Path, required=True)
     train.add_argument("--authorization", type=Path, required=True)
     train.add_argument("--preflight-report", type=Path, required=True)
+    train.add_argument("--seed", type=int, required=True)
     train.add_argument("--resume", action="store_true")
     return parser
 
@@ -88,10 +89,12 @@ def main(argv: list[str] | None = None) -> int:
                 data_root=args.data_root,
                 authorization_path=args.authorization,
                 preflight_report_path=args.preflight_report,
+                seed=args.seed,
                 resume=args.resume,
             )
-            print(json.dumps({"status": "PASS", "runs": report["runs"]}))
-            return 0
+            passed = report["status"] == "complete"
+            print(json.dumps({"status": "PASS" if passed else "FAIL", "runs": report["runs"]}))
+            return 0 if passed else 3
     except Phase0BlockedError as error:
         print(f"BLOCKED: {error}", file=sys.stderr)
         return 2

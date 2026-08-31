@@ -1,3 +1,0 @@
- M src/cg_pipeline/pooling.py
-?? src/cg_pipeline/pooling.py.before-backward-fix
-?? src/cg_pipeline/pooling.py.before-batch-vectorize

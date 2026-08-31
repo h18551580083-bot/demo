@@ -1780,3 +1780,14 @@ Human-approved governance change:
 - This decision does not alter model structure, Morlet parameters, H/E separation,
   pooling mathematics, optimizer or training hyperparameters. It authorizes no
   training, test access, tag publication, release creation, or phase transition.
+
+## 2026-08-31 — Execute one approved seed per formal invocation
+
+- The Phase 1 formal baseline remains `phase1-cam16-baseline-b32-v2` with
+  `batch_size = 32` and approved seeds `1729`, `3407`, and `7919`.
+- To control one cloud invocation's duration, `formal-train` now executes exactly
+  one approved `--seed`. The three seeds remain repeats under the same Run ID and
+  output root, not separate experiment baselines.
+- The completed seed `1729` result remains part of that baseline. This scheduling
+  change does not alter the model, data, optimizer, batch size, or any other
+  scientific experiment contract.

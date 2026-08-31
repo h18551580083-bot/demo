@@ -247,7 +247,7 @@ def test_exploratory_engineering_overrides_are_typed_and_hashed(tmp_path: Path) 
         ("allow_test = false", "allow_test = true", "test access"),
         ('identity_column = "slide_id"', 'identity_column = "group_id"', "locked contract"),
         ('classifier = "linear-logit-v1"', 'classifier = "mlp"', "locked contract"),
-        ("batch_size = 16", "batch_size = 8", "locked contract"),
+        ("batch_size = 32", "batch_size = 8", "locked contract"),
         ("num_workers = 8", "num_workers = 0", "locked contract"),
         ('primary_metric = "slide_auroc"', 'primary_metric = "patch_auroc"', "locked contract"),
         ("tf32 = false", "tf32 = true", "determinism and precision guards"),
@@ -267,27 +267,27 @@ def test_formal_config_accepts_new_run_identity_with_matching_output_root(
     tmp_path: Path,
 ) -> None:
     source = _formal_document().replace(
-        'run_id = "phase1-cam16-baseline-b16-v1"',
-        'run_id = "phase1-cam16-baseline-b16-v2"',
+        'run_id = "phase1-cam16-baseline-b32-v2"',
+        'run_id = "phase1-cam16-baseline-b32-v3"',
     ).replace(
-        'output_root = "artifacts/formal_runs/phase1-cam16-baseline-b16-v1"',
-        'output_root = "artifacts/formal_runs/phase1-cam16-baseline-b16-v2"',
+        'output_root = "artifacts/formal_runs/phase1-cam16-baseline-b32-v2"',
+        'output_root = "artifacts/formal_runs/phase1-cam16-baseline-b32-v3"',
     )
     path = tmp_path / "formal.toml"
     path.write_text(source, encoding="utf-8")
 
     config = load_experiment_config(path)
 
-    assert config.execution["run_id"] == "phase1-cam16-baseline-b16-v2"
+    assert config.execution["run_id"] == "phase1-cam16-baseline-b32-v3"
     assert config.execution["output_root"] == (
-        "artifacts/formal_runs/phase1-cam16-baseline-b16-v2"
+        "artifacts/formal_runs/phase1-cam16-baseline-b32-v3"
     )
 
 
 def test_formal_config_rejects_run_id_output_root_mismatch(tmp_path: Path) -> None:
     source = _formal_document().replace(
-        'run_id = "phase1-cam16-baseline-b16-v1"',
-        'run_id = "phase1-cam16-baseline-b16-v2"',
+        'run_id = "phase1-cam16-baseline-b32-v2"',
+        'run_id = "phase1-cam16-baseline-b32-v3"',
     )
     path = tmp_path / "formal.toml"
     path.write_text(source, encoding="utf-8")
@@ -311,9 +311,9 @@ def test_formal_config_rejects_invalid_run_identity_paths(
     tmp_path: Path, run_id: str, output_root: str
 ) -> None:
     source = _formal_document().replace(
-        'run_id = "phase1-cam16-baseline-b16-v1"', f"run_id = '{run_id}'"
+        'run_id = "phase1-cam16-baseline-b32-v2"', f"run_id = '{run_id}'"
     ).replace(
-        'output_root = "artifacts/formal_runs/phase1-cam16-baseline-b16-v1"',
+        'output_root = "artifacts/formal_runs/phase1-cam16-baseline-b32-v2"',
         f"output_root = '{output_root}'",
     )
     path = tmp_path / "formal.toml"

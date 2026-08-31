@@ -35,6 +35,9 @@ isolation, CUDA, fixed frontend and Morlet checks, optimizer ownership, fixed se
 complete epochs, validation checkpoint selection, immutable outputs, and provenance.
 Git state, tags, commit paths, code identity, and config identity are not gates. Test
 access remains prohibited for both modes pending separate final-once authorization.
+The formal baseline approves seeds `1729`, `3407`, and `7919`, but one
+`formal-train` invocation executes exactly one approved `--seed`. These are repeat
+runs under `phase1-cam16-baseline-b32-v2`, not separate experiment identities.
 
 ## Frozen optimization contract
 
@@ -90,7 +93,9 @@ precision, and the fixed-front-end byte identity before and after the step.
 ## Output and interruption contract
 
 The formal layout is `output_root/seed-<seed>/epoch-<zero-padded>.{pt,json}` plus
-the final summary. Existing files are never overwritten. Resume requires a continuous
+per-seed completion/failure state and summary. Existing seed directories and files
+are never overwritten. A completed seed fails closed if selected again; a missing
+approved seed may start under the existing baseline output root. Resume requires a continuous
 zero-based sequence of `.pt`/`.json` pairs. It loads only the latest pair after
 source/effective manifest, complete fixed-frontend, model-state checkpoint, optimizer,
 seed, and epoch validation. A partial, gapped, or mismatched history fails; it is not
@@ -123,5 +128,6 @@ python -m cg_pipeline formal-train \
   --config configs/phase1_baseline.toml \
   --data-root "$DATA_ROOT" \
   --authorization configs/formal_training_authorization.json \
-  --preflight-report artifacts/preflight/phase1-training-b32-workers8-v1/preflight.json
+  --preflight-report artifacts/preflight/phase1-training-b32-workers8-v1/preflight.json \
+  --seed 3407
 ```

@@ -61,6 +61,7 @@ def test_repository_formal_and_exploratory_configs_are_machine_validated() -> No
     assert exploratory.execution_kind == "exploratory_train"
     assert formal.execution["allow_test"] is exploratory.execution["allow_test"] is False
     assert formal.training["seeds"] == (1729, 3407, 7919)
+    assert formal.training["batch_size"] == 32
     assert exploratory.training["seeds"] == (1729,)
     assert formal.training["num_workers"] == exploratory.training["num_workers"] == 8
 
@@ -175,3 +176,33 @@ def test_cli_exposes_only_explicit_exploratory_and_formal_training_commands(
         main(["dry-run"])
     with pytest.raises(SystemExit):
         main(["train"])
+
+
+def test_formal_cli_requires_and_forwards_one_seed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_formal(config: Path, **kwargs: object) -> dict[str, object]:
+        captured.update({"config": config, **kwargs})
+        status = "complete" if kwargs["seed"] == 3407 else "failed"
+        return {"status": status, "runs": [{"seed": kwargs["seed"], "status": status}]}
+
+    monkeypatch.setattr(cli_module, "run_formal_training", fake_formal)
+    arguments = [
+        "formal-train",
+        "--config",
+        str(tmp_path / "config.toml"),
+        "--data-root",
+        str(tmp_path / "data"),
+        "--authorization",
+        str(tmp_path / "authorization.json"),
+        "--preflight-report",
+        str(tmp_path / "preflight.json"),
+    ]
+
+    assert main([*arguments, "--seed", "3407"]) == 0
+    assert captured["seed"] == 3407
+    assert main([*arguments, "--seed", "7919"]) == 3
+    with pytest.raises(SystemExit):
+        main(arguments)

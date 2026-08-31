@@ -98,11 +98,25 @@ def audit_tracked_files(repository: Path | str) -> dict[str, Any]:
         ".zip",
         ".env",
     }
+    formal_seed_prefix = "artifacts/formal_runs/phase1-cam16-baseline-b32-v2/seed-1729/"
+    approved_formal_artifacts = {
+        formal_seed_prefix + "completion.json",
+        *(
+            formal_seed_prefix + f"epoch-{epoch:04d}.{suffix}"
+            for epoch in range(15)
+            for suffix in ("json", "pt")
+        ),
+    }
+    approved_formal_records = {"artifacts/preflight/87523e2/preflight.json"}
     forbidden = [
         path
         for path in paths
-        if path.startswith(("artifacts/", "cam16_patch/"))
-        or Path(path).suffix.lower() in forbidden_extensions
+        if (
+            path.startswith(("artifacts/", "cam16_patch/"))
+            or Path(path).suffix.lower() in forbidden_extensions
+        )
+        and path not in approved_formal_artifacts
+        and path not in approved_formal_records
     ]
     if forbidden:
         raise AcceptanceError(f"forbidden tracked files: {forbidden}")

@@ -335,7 +335,7 @@ def test_cuda_unavailable_blocks_preflight(tmp_path: Path, monkeypatch: pytest.M
     assert "configured_device" in report["blocking_gates"]
 
 
-def test_preflight_report_allows_formal_training_to_reach_seed_preparation(
+def test_formal_training_runs_only_the_selected_seed_under_an_existing_baseline(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     repository = _git_repository(tmp_path)
@@ -367,16 +367,86 @@ def test_preflight_report_allows_formal_training_to_reach_seed_preparation(
         }
 
     monkeypatch.setattr(pipeline_module, "run_formal_seed", fake_seed)
+    destination = repository / "artifacts" / "formal_runs" / "phase1-cam16-baseline-b32-v2"
+    completed = destination / "seed-1729"
+    completed.mkdir(parents=True)
+    completion = {
+        "run_id": "wrong-formal-baseline",
+        "seed": 1729,
+        "status": "complete",
+        "best_validation_slide_auroc": 0.5,
+    }
+    (completed / "completion.json").write_text(json.dumps(completion), encoding="utf-8")
+    with pytest.raises(ValueError, match="invalid completion record for seed 1729"):
+        run_formal_training(
+            config,
+            data_root=data,
+            authorization_path=authorization,
+            preflight_report_path=report_path,
+            seed=3407,
+        )
+    assert observed == []
+    completion["run_id"] = "phase1-cam16-baseline-b32-v2"
+    (completed / "completion.json").write_text(json.dumps(completion), encoding="utf-8")
     summary = run_formal_training(
         config,
         data_root=data,
         authorization_path=authorization,
         preflight_report_path=report_path,
+        seed=3407,
     )
 
-    assert observed == [1729, 3407, 7919]
+    assert observed == [3407]
+    assert summary["seed_status"] == {
+        "1729": "completed",
+        "3407": "completed",
+        "7919": "pending",
+    }
     assert summary["phase1_training_preflight"] == "PASS"
     assert summary["test_split_accessed"] is False
+    generated_completion = json.loads(
+        (destination / "seed-3407" / "completion.json").read_text(encoding="utf-8")
+    )
+    assert generated_completion["run_id"] == "phase1-cam16-baseline-b32-v2"
+    assert generated_completion["automatic_retry"] is False
+    original_completion = (completed / "completion.json").read_bytes()
+    with pytest.raises(FileExistsError):
+        run_formal_training(
+            config,
+            data_root=data,
+            authorization_path=authorization,
+            preflight_report_path=report_path,
+            seed=1729,
+        )
+    assert (completed / "completion.json").read_bytes() == original_completion
+
+    def failed_seed(*args: object, seed: int, **kwargs: object) -> dict[str, object]:
+        raise RuntimeError(f"fixture failure for seed {seed}")
+
+    monkeypatch.setattr(pipeline_module, "run_formal_seed", failed_seed)
+    failed = run_formal_training(
+        config,
+        data_root=data,
+        authorization_path=authorization,
+        preflight_report_path=report_path,
+        seed=7919,
+    )
+    failure_record = json.loads(
+        (destination / "seed-7919" / "failure.json").read_text(encoding="utf-8")
+    )
+    assert failed["status"] == "failed"
+    assert failure_record["run_id"] == "phase1-cam16-baseline-b32-v2"
+
+
+def test_formal_training_rejects_unapproved_seed_before_preflight(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="seed 1 is not approved"):
+        run_formal_training(
+            _formal_config(tmp_path),
+            data_root=tmp_path / "data",
+            authorization_path=tmp_path / "authorization.json",
+            preflight_report_path=tmp_path / "preflight.json",
+            seed=1,
+        )
 
 
 @pytest.mark.parametrize(
@@ -408,4 +478,5 @@ def test_formal_training_rejects_failed_or_test_accessing_preflight(
             data_root=data,
             authorization_path=authorization,
             preflight_report_path=report_path,
+            seed=1729,
         )

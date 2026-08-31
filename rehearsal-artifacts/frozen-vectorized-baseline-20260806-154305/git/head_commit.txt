@@ -1,7 +1,0 @@
-commit f77053bbaba03363f8209cd7cd618295b95a46ab
-Author:     18551580083@163.com <18551580083@163.com>
-AuthorDate: Tue Aug 4 17:40:07 2026 +0800
-Commit:     18551580083@163.com <18551580083@163.com>
-CommitDate: Tue Aug 4 17:44:17 2026 +0800
-
-    release: republish Phase 1 training b32 v3

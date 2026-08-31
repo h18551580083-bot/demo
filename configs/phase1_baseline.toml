@@ -2,9 +2,9 @@ schema_version = "phase0-experiment-config-v2"
 
 [execution]
 kind = "formal_train"
-run_id = "phase1-cam16-baseline-b16-v1"
+run_id = "phase1-cam16-baseline-b32-v2"
 device = "cuda:0"
-output_root = "artifacts/formal_runs/phase1-cam16-baseline-b16-v1"
+output_root = "artifacts/formal_runs/phase1-cam16-baseline-b32-v2"
 max_steps = 0
 allow_test = false
 
@@ -53,7 +53,7 @@ beta2 = "0.999"
 epsilon = "0.00000001"
 weight_decay = "0.0001"
 scheduler = "none"
-batch_size = 16
+batch_size = 32
 max_epochs = 20
 early_stopping_patience = 5
 early_stopping_min_delta = "0"

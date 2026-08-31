@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.pytest-*/
 .ruff_cache/
 *.egg-info/
 build/
@@ -24,6 +25,7 @@ env/
 # Local calibration outputs and CAM16 data packages
 artifacts/
 cam16_patch/
+rehearsal-artifacts/
 
 # Binary working documents are not part of the versioned specification
 docs/*.docx

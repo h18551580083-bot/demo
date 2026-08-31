@@ -25,7 +25,9 @@ export RELEASE_ID="phase1-training-b32-workers8-v1"
 export RUN_ID="phase1-cam16-baseline-b32-v2"
 export PREFLIGHT_REPORT="artifacts/preflight/${RELEASE_ID}/preflight.json"
 export FORMAL_OUTPUT="artifacts/formal_runs/${RUN_ID}"
+export SEED="3407"
 test -d "$DATA_ROOT"
+case "$SEED" in 1729|3407|7919) ;; *) exit 1 ;; esac
 ```
 
 `DATA_ROOT` must already contain the approved package. Do not create aliases for a
@@ -66,30 +68,32 @@ git diff --check
 The tests, compile check, and Ruff must all pass. These checks do not access CAM16
 test images or start training.
 
-## 5. Confirm clean artifact destinations
+## 5. Confirm the selected seed destination is new
 
-The unchanged Run ID may be used only when neither the workers8 preflight report nor the
-formal output exists:
+The Run ID and output root are shared by all three approved seeds. The completed
+`seed-1729` artifacts remain in place; only the selected seed directory must be absent:
 
 ```bash
-test ! -e "$PREFLIGHT_REPORT"
-test ! -e "$FORMAL_OUTPUT"
+test ! -e "$FORMAL_OUTPUT/seed-$SEED"
 ```
 
 Do not delete, rename, merge, or overwrite an earlier formal artifact to make these
 checks pass. Stop and preserve it.
 
-## 6. Run the standalone preflight exactly once
+## 6. Ensure the standalone preflight exists
 
 ```bash
-python -m cg_pipeline formal-preflight \
-  --config configs/phase1_baseline.toml \
-  --data-root "$DATA_ROOT" \
-  --authorization configs/formal_training_authorization.json \
-  --output "$PREFLIGHT_REPORT"
+if [ ! -e "$PREFLIGHT_REPORT" ]; then
+  python -m cg_pipeline formal-preflight \
+    --config configs/phase1_baseline.toml \
+    --data-root "$DATA_ROOT" \
+    --authorization configs/formal_training_authorization.json \
+    --output "$PREFLIGHT_REPORT"
+fi
 ```
 
-The command writes to the requested new path and checks current config parsing,
+The first invocation writes the report exclusively; later seed invocations reuse
+that report and must not overwrite it. The preflight checks current config parsing,
 train/validation manifest and patch existence, nonempty splits, isolation, CUDA,
 the fixed frontend, Morlet numerical/spectral correctness, optimizer ownership,
 determinism, authorization, and disabled test access.
@@ -105,14 +109,16 @@ python -m cg_pipeline formal-train \
   --config configs/phase1_baseline.toml \
   --data-root "$DATA_ROOT" \
   --authorization configs/formal_training_authorization.json \
-  --preflight-report "$PREFLIGHT_REPORT"
+  --preflight-report "$PREFLIGHT_REPORT" \
+  --seed "$SEED"
 ```
 
 Training does not rerun the full standalone preflight. Before its first batch it
 checks that the report is readable, passed, unblocked, did not start training, and
 did not access test. It revalidates current authorization, CUDA availability,
 train/validation files, and split isolation. Report path, extra fields, Git state,
-code identity, and config identity are not gates.
+code identity, and config identity are not gates. This invocation runs only
+`$SEED`; other approved seed directories are neither required nor modified.
 
 ## 8. Interruption and resume
 
@@ -125,6 +131,7 @@ python -m cg_pipeline formal-train \
   --data-root "$DATA_ROOT" \
   --authorization configs/formal_training_authorization.json \
   --preflight-report "$PREFLIGHT_REPORT" \
+  --seed "$SEED" \
   --resume
 ```
 
@@ -134,7 +141,8 @@ It never repairs or overwrites artifacts.
 
 ## 9. Stop conditions and claims
 
-Stop immediately on any nonzero command, invalid authorization, existing destination,
+Stop immediately on any nonzero command, invalid authorization, existing selected
+seed destination,
 non-4090 device, changed manifest/split, unsafe report result, or
 resume discontinuity. Preserve the terminal output and artifacts for audit; do not
 retry by changing the contract.

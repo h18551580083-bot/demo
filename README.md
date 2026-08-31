@@ -17,7 +17,8 @@ deployment code.
   profiling, performance tuning, and other explicitly non-formal experiments.
 - `python -m cg_pipeline formal-preflight`: formal configuration, data, model, precision,
   isolation, CUDA, and lightweight authorization gates.
-- `python -m cg_pipeline formal-train`: the sole formal training entry; it consumes a
+- `python -m cg_pipeline formal-train --seed <SEED>`: the sole formal training entry;
+  each invocation trains exactly one approved seed, consumes a
   passing standalone preflight report and revalidates current data, split, CUDA,
   test-access, and authorization safety before preparation.
 
@@ -56,8 +57,10 @@ to `artifacts/exploratory_runs/<run_id>/` and every report/checkpoint records
 `formal_experiment=false` and `experiment_mode=exploratory_train`. Exploratory
 results cannot be relabelled or automatically promoted to formal results.
 
-Formal training remains authorization- and preflight-gated, multi-seed, immutable,
-and non-overwriting. Git state, tags, code identity, config identity, and report
+Formal training remains authorization- and preflight-gated, immutable, and
+non-overwriting. Seeds `1729`, `3407`, and `7919` are repeats under the same formal
+baseline, while each invocation runs only the seed passed through `--seed`. Git
+state, tags, code identity, config identity, and report
 checksums are not startup gates. Both modes construct only train and validation
 datasets; neither CLI exposes test access.
 
@@ -95,7 +98,8 @@ python -m cg_pipeline formal-train `
   --config configs\phase1_baseline.toml `
   --data-root cam16_patch `
   --authorization configs\formal_training_authorization.json `
-  --preflight-report artifacts\preflight\phase1-training-b32-workers8-v1\preflight.json
+  --preflight-report artifacts\preflight\phase1-training-b32-workers8-v1\preflight.json `
+  --seed 3407
 ```
 
 The exploratory configuration is non-formal. The formal configuration is a
@@ -116,6 +120,8 @@ through `--authorization` is a lightweight authorization record.
 
 The active formal run is `phase1-cam16-baseline-b32-v2`, with batch size 32,
 2,487 train updates per complete epoch, and at most 49,740 updates over 20 epochs.
+Its approved seeds are `1729`, `3407`, and `7919`; they share this Run ID and
+`artifacts/formal_runs/phase1-cam16-baseline-b32-v2/` output root.
 Run the controlled checklist in `docs/PHASE1_TRAINING_RUNBOOK.md` with the current
 lightweight authorization record.
 
@@ -125,7 +131,8 @@ python -m cg_pipeline formal-train `
   --config configs\phase1_baseline.toml `
   --data-root cam16_patch `
   --authorization configs\formal_training_authorization.json `
-  --preflight-report artifacts\preflight\phase1-training-b32-workers8-v1\preflight.json
+  --preflight-report artifacts\preflight\phase1-training-b32-workers8-v1\preflight.json `
+  --seed 3407
 ```
 
 Training never loads the test split. Test evaluation requires a later, separate
