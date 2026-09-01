@@ -50,6 +50,7 @@ _SECTION_KEYS: dict[str, set[str]] = {
         "xi0",
         "gamma",
         "frontend_backend",
+        "frontend_variant",
         "pyramid_levels",
         "classifier",
         "precision_policy",
@@ -112,6 +113,8 @@ _SECTION_KEYS: dict[str, set[str]] = {
         "gradient_scaling",
     },
 }
+
+_OPTIONAL_SECTION_KEYS = {"model": {"frontend_variant"}}
 
 _EXACT_VALUES: dict[tuple[str, str], Any] = {
     ("data", "contract_id"): "cam16-existing-patch-v1",
@@ -254,6 +257,16 @@ def _reject_floats_and_tbd(value: Any, path: str = "config") -> None:
             _reject_floats_and_tbd(item, f"{path}[{index}]")
 
 
+def _resolve_frontend_variant(model: Mapping[str, Any]) -> Any:
+    if "frontend_variant" in model:
+        return model["frontend_variant"]
+    if model.get("contract_id") == "fixed-he-morlet-linear-v1":
+        return "morlet"
+    raise ConfigError(
+        "model.frontend_variant is required unless the explicit legacy Morlet contract_id is used"
+    )
+
+
 def _validate_shape(document: dict[str, Any]) -> None:
     expected_top = {"schema_version", *_SECTION_KEYS}
     missing_top = expected_top.difference(document)
@@ -268,7 +281,7 @@ def _validate_shape(document: dict[str, Any]) -> None:
         value = document[section]
         if not isinstance(value, dict):
             raise ConfigError(f"section {section} must be a table")
-        missing = expected.difference(value)
+        missing = expected.difference(value).difference(_OPTIONAL_SECTION_KEYS.get(section, set()))
         unknown = set(value).difference(expected)
         if missing:
             raise ConfigError(f"missing fields in {section}: {sorted(missing)}")
@@ -312,7 +325,27 @@ def _validate_semantics(document: dict[str, Any]) -> None:
     mapping_evidence = document["data"]["patient_mapping_evidence"]
     if mapping_evidence != "not_available":
         raise ConfigError("patient mapping evidence must remain not_available for CAM16 Phase 1")
+    frontend_variant = _resolve_frontend_variant(document["model"])
+    if not isinstance(frontend_variant, str) or frontend_variant not in {
+        "morlet",
+        "matched_control",
+    }:
+        raise ConfigError("model.frontend_variant must be morlet or matched_control")
+    if execution["kind"] == "formal_train" and frontend_variant != "morlet":
+        raise ConfigError("formal training and preflight are Morlet-only")
+    if (
+        frontend_variant == "matched_control"
+        and document["model"]["contract_id"] != "fixed-he-matched-control-linear-v1"
+    ):
+        raise ConfigError(
+            "matched_control requires model.contract_id=fixed-he-matched-control-linear-v1"
+        )
     for (section, key), expected in _EXACT_VALUES.items():
+        if frontend_variant == "matched_control" and (section, key) == (
+            "model",
+            "contract_id",
+        ):
+            continue
         if (
             execution["kind"] == "exploratory_train"
             and (
@@ -449,6 +482,10 @@ class ExperimentConfig:
     @property
     def model(self) -> Mapping[str, Any]:
         return self._document["model"]
+
+    @property
+    def frontend_variant(self) -> str:
+        return str(_resolve_frontend_variant(self._document["model"]))
 
     @property
     def training(self) -> Mapping[str, Any]:

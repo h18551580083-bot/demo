@@ -10,6 +10,14 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
+from .control_bank import (
+    CONTROL_CONTRACT_ID,
+    CONTROL_GENERATOR_VERSION,
+    CONTROL_RNG,
+    CONTROL_SEED,
+    EXPECTED_CONTROL_FIXED_STATE_SHA256,
+    generate_matched_control_bundle,
+)
 from .identity import domain_hash
 from .morlet import generate_morlet_bundle
 
@@ -114,14 +122,24 @@ def _stable_modulus(response: torch.Tensor) -> torch.Tensor:
     return result
 
 
-class FixedHEMorletFrontend(nn.Module):
-    """Immutable optical-domain buffers; this module owns no Parameter."""
+class _FixedHEWaveletFrontend(nn.Module):
+    """Shared immutable H/E separation and wavelet-modulus execution."""
 
-    def __init__(self, *, backend: str) -> None:
+    def __init__(
+        self,
+        *,
+        backend: str,
+        kernel_name: str,
+        kernels64: np.ndarray,
+        channel_metadata: tuple[tuple[int, int, int, str], ...],
+        identity_fields: dict[str, str],
+        canonical_kernel_hash: str,
+        spatial_execution_hash: str,
+        expected_fixed_state_sha256: str | None = None,
+    ) -> None:
         super().__init__()
         if backend not in {"fft", "spatial"}:
             raise FrontendContractError("backend must be fft or spatial")
-        bundle = generate_morlet_bundle()
         basis = np.array(
             [
                 [0.644211, 0.716556, 0.266844],
@@ -131,12 +149,13 @@ class FixedHEMorletFrontend(nn.Module):
         )
         pseudoinverse = np.linalg.pinv(basis)
         self.backend = backend
+        self._kernel_name = kernel_name
         self.register_buffer("stain_basis", torch.from_numpy(basis), persistent=True)
-        self.register_buffer("stain_pseudoinverse", torch.from_numpy(pseudoinverse), persistent=True)
         self.register_buffer(
-            "morlet_kernels", torch.from_numpy(bundle.kernels64.copy()), persistent=True
+            "stain_pseudoinverse", torch.from_numpy(pseudoinverse), persistent=True
         )
-        self.channel_metadata = bundle.channel_metadata
+        self.register_buffer(kernel_name, torch.from_numpy(kernels64.copy()), persistent=True)
+        self.channel_metadata = channel_metadata
         stain_header = {
             "background": "white-maps-to-zero",
             "basis": [
@@ -153,10 +172,19 @@ class FixedHEMorletFrontend(nn.Module):
             "pseudoinverse": "moore-penrose-float64",
         }
         self._stain_spec_hash = domain_hash("cg/stain-separation-spec/v1", stain_header)
-        self._parameter_hash = bundle.parameter_hash
-        self._canonical_kernel_hash = bundle.canonical_kernel_hash
-        self._spatial_execution_hash = bundle.spatial_execution_hash
+        self._identity_fields = identity_fields
+        self._canonical_kernel_hash = canonical_kernel_hash
+        self._spatial_execution_hash = spatial_execution_hash
         self._declared_fixed_identity = self.fixed_state_identity()
+        if (
+            expected_fixed_state_sha256 is not None
+            and self._declared_fixed_identity["fixed_state_sha256"] != expected_fixed_state_sha256
+        ):
+            raise FrontendContractError(
+                "fixed matched-control state identity mismatch: "
+                f"expected {expected_fixed_state_sha256}, observed "
+                f"{self._declared_fixed_identity['fixed_state_sha256']}"
+            )
         self._fixed_identity_cache_token = self._fixed_state_token()
         self._kernel_fft_cache: torch.Tensor | None = None
         self._kernel_fft_cache_key: _FFTCacheKey | None = None
@@ -164,6 +192,10 @@ class FixedHEMorletFrontend(nn.Module):
     @property
     def shared_kernel_reference_count(self) -> int:
         return 1
+
+    @property
+    def _kernels(self) -> torch.Tensor:
+        return getattr(self, self._kernel_name)
 
     def _fixed_state_token(self) -> tuple[tuple[object, ...], ...]:
         return tuple(
@@ -175,7 +207,7 @@ class FixedHEMorletFrontend(nn.Module):
                 value.dtype,
                 tuple(value.shape),
             )
-            for name in ("stain_basis", "stain_pseudoinverse", "morlet_kernels")
+            for name in ("stain_basis", "stain_pseudoinverse", self._kernel_name)
             for value in (getattr(self, name),)
         )
 
@@ -203,7 +235,9 @@ class FixedHEMorletFrontend(nn.Module):
             raise FrontendContractError("stain separation produced non-finite concentrations")
         return output
 
-    def _valid_mask(self, batch: int, height: int, width: int, device: torch.device) -> torch.Tensor:
+    def _valid_mask(
+        self, batch: int, height: int, width: int, device: torch.device
+    ) -> torch.Tensor:
         mask = torch.zeros((batch, 1, height, width), dtype=torch.bool, device=device)
         if height > 104 and width > 104:
             mask[..., 52 : height - 52, 52 : width - 52] = True
@@ -227,7 +261,7 @@ class FixedHEMorletFrontend(nn.Module):
                 spatial_execution_kernel_hash=self._spatial_execution_hash,
                 input_dimensions=(height, width),
                 fft_grid=fft_shape,
-                dtype=str(self.morlet_kernels.dtype).removeprefix("torch."),
+                dtype=str(self._kernels.dtype).removeprefix("torch."),
                 normalization="backward",
                 shift_convention="no-shift",
                 crop_convention="offset-104-same-size",
@@ -235,12 +269,12 @@ class FixedHEMorletFrontend(nn.Module):
                 backend_version=str(torch.__version__),
                 device_class=rgb.device.type,
                 device_index=rgb.device.index,
-                kernel_data_ptr=self.morlet_kernels.data_ptr(),
-                kernel_version=int(self.morlet_kernels._version),
+                kernel_data_ptr=self._kernels.data_ptr(),
+                kernel_version=int(self._kernels._version),
             )
             if self._kernel_fft_cache is None or self._kernel_fft_cache_key != cache_key:
                 self._kernel_fft_cache = torch.fft.fft2(
-                    self.morlet_kernels,
+                    self._kernels,
                     s=fft_shape,
                     norm="backward",
                 )
@@ -248,7 +282,7 @@ class FixedHEMorletFrontend(nn.Module):
             kernel_fft = self._kernel_fft_cache
         response = complex_convolve(
             combined,
-            self.morlet_kernels,
+            self._kernels,
             backend=self.backend,
             kernel_fft=kernel_fft,
         )
@@ -262,14 +296,71 @@ class FixedHEMorletFrontend(nn.Module):
 
     def fixed_state_identity(self) -> dict[str, str]:
         digest = hashlib.sha256()
-        for name in ("stain_basis", "stain_pseudoinverse", "morlet_kernels"):
+        for name in ("stain_basis", "stain_pseudoinverse", self._kernel_name):
             value = getattr(self, name).detach().cpu().contiguous().numpy()
             digest.update(name.encode("ascii") + b"\x00")
             digest.update(value.tobytes(order="C"))
         return {
             "stain_spec_hash": self._stain_spec_hash,
-            "morlet_parameter_hash": self._parameter_hash,
-            "canonical_kernel_hash": self._canonical_kernel_hash,
-            "spatial_execution_hash": self._spatial_execution_hash,
+            **self._identity_fields,
             "fixed_state_sha256": "sha256:" + digest.hexdigest(),
+        }
+
+
+class FixedHEMorletFrontend(_FixedHEWaveletFrontend):
+    """Immutable primary Morlet frontend; this module owns no Parameter."""
+
+    def __init__(self, *, backend: str) -> None:
+        bundle = generate_morlet_bundle()
+        super().__init__(
+            backend=backend,
+            kernel_name="morlet_kernels",
+            kernels64=bundle.kernels64,
+            channel_metadata=bundle.channel_metadata,
+            identity_fields={
+                "morlet_parameter_hash": bundle.parameter_hash,
+                "canonical_kernel_hash": bundle.canonical_kernel_hash,
+                "spatial_execution_hash": bundle.spatial_execution_hash,
+            },
+            canonical_kernel_hash=bundle.canonical_kernel_hash,
+            spatial_execution_hash=bundle.spatial_execution_hash,
+        )
+        self._parameter_hash = bundle.parameter_hash
+
+    def artifact_identity(self) -> dict[str, str]:
+        return {
+            "frontend_variant": "morlet",
+            "frontend_contract_id": "fixed-he-morlet-linear-v1",
+            **self.fixed_state_identity(),
+        }
+
+
+class FixedHEMatchedControlFrontend(_FixedHEWaveletFrontend):
+    """Immutable envelope-matched random-phase exploratory control frontend."""
+
+    def __init__(self, *, backend: str) -> None:
+        bundle = generate_matched_control_bundle()
+        super().__init__(
+            backend=backend,
+            kernel_name="control_kernels",
+            kernels64=bundle.kernels64,
+            channel_metadata=bundle.channel_metadata,
+            identity_fields={
+                "filter_bank_specification_hash": bundle.specification_hash,
+                "canonical_kernel_hash": bundle.canonical_kernel_hash,
+                "spatial_execution_hash": bundle.spatial_execution_hash,
+            },
+            canonical_kernel_hash=bundle.canonical_kernel_hash,
+            spatial_execution_hash=bundle.spatial_execution_hash,
+            expected_fixed_state_sha256=EXPECTED_CONTROL_FIXED_STATE_SHA256,
+        )
+
+    def artifact_identity(self) -> dict[str, str]:
+        return {
+            "frontend_variant": "matched_control",
+            "frontend_contract_id": CONTROL_CONTRACT_ID,
+            "generator_version": CONTROL_GENERATOR_VERSION,
+            "rng": CONTROL_RNG,
+            "control_seed": str(CONTROL_SEED),
+            **self.fixed_state_identity(),
         }

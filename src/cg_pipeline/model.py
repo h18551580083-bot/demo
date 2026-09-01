@@ -8,7 +8,7 @@ from dataclasses import dataclass
 import torch
 from torch import nn
 
-from .frontend import FixedHEMorletFrontend, FrontendOutput
+from .frontend import FixedHEMatchedControlFrontend, FixedHEMorletFrontend, FrontendOutput
 from .interaction import HEInteractionBlock, InteractionOutput
 from .pooling import PoolOutput, SupportAlignedPool, flatten_pooled
 
@@ -25,16 +25,25 @@ class ModelOutput:
 class FixedHEClassifier(nn.Module):
     """The exact 9473-scalar electronic backend after an immutable frontend."""
 
-    def __init__(self, *, frontend_backend: str) -> None:
+    def __init__(self, *, frontend_backend: str, frontend_variant: str = "morlet") -> None:
         super().__init__()
-        self.frontend = FixedHEMorletFrontend(backend=frontend_backend)
+        if frontend_variant == "morlet":
+            self.frontend = FixedHEMorletFrontend(backend=frontend_backend)
+        elif frontend_variant == "matched_control":
+            self.frontend = FixedHEMatchedControlFrontend(backend=frontend_backend)
+        else:
+            raise ValueError("frontend_variant must be morlet or matched_control")
         self.interaction = HEInteractionBlock()
         self.pooling = SupportAlignedPool()
         self.classifier = nn.Linear(9408, 1, bias=True, dtype=torch.float32)
         nn.init.zeros_(self.classifier.weight)
         nn.init.zeros_(self.classifier.bias)
-        if sum(parameter.numel() for parameter in self.electronic_parameters()) != 9473:
-            raise RuntimeError("electronic parameter budget is not exactly 9473")
+        electronic_count = sum(parameter.numel() for parameter in self.electronic_parameters())
+        trainable_count = sum(
+            parameter.numel() for parameter in self.parameters() if parameter.requires_grad
+        )
+        if electronic_count != 9473 or trainable_count != 9473:
+            raise RuntimeError("trainable electronic parameter budget is not exactly 9473")
 
     def electronic_parameters(self) -> Iterator[nn.Parameter]:
         yield from self.interaction.parameters()

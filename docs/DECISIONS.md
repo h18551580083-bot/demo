@@ -1803,3 +1803,65 @@ Human-approved governance change:
 - This change only reduces the number of formal seed repeats. It does not alter
   the model, data split, batch size, optimizer, learning rate, epoch budget,
   early stopping, or evaluation contract.
+
+## 2026-09-01 — Approve an exploratory-only matched-control frontend interface
+
+Human-approved implementation scope:
+
+- Add the configuration value `frontend_variant = "morlet" | "matched_control"`.
+  An omitted value is accepted only when the existing explicit
+  `model.contract_id = "fixed-he-morlet-linear-v1"` identifies the legacy Morlet
+  contract. The value comes only from the configuration file and has no CLI
+  override.
+- `matched_control` is permitted only for `exploratory_train`; formal configuration,
+  preflight, and training remain Morlet-only and reject it before data access.
+- Both variants use the same `HEInteractionBlock`, `SupportAlignedPool`, linear
+  classifier, protected execution semantics, and exact 9473 trainable electronic
+  scalars. Both fixed frontends own no trainable parameter.
+
+Matched-control v1 contract:
+
+- The canonical name is **frozen envelope-matched random-phase control**. Its
+  generator version is `frozen-envelope-matched-random-phase-v1`, its RNG is
+  `PCG64DXSM`, and its fixed seed is `20260901`.
+- One raw unsigned 64-bit RNG value is consumed per `[channel,y,x]` entry in
+  scale-major, orientation-major, row-major order. Its low two bits map as
+  `0 -> 1`, `1 -> -1`, `2 -> i`, and `3 -> -i`.
+- Each channel uses the corresponding Morlet Gaussian envelope, scale,
+  orientation, and 105 by 105 grid. Discrete DC projection and unit complex L2
+  normalization occur in complex128; the canonical runtime bank is complex64.
+- The bank has 32 scale-orientation channels shared by H and E and retains the
+  Morlet path's convolution, reflection padding, crop, modulus, support mask,
+  interaction, pooling, and classifier contracts.
+
+Frozen matched-control identities:
+
+- The control-only domain tags are `cg/matched-control-filter-bank-spec/v1`,
+  `cg/matched-control-kernel-canonical/v1`, and
+  `cg/matched-control-kernel-spatial-exec/v1`. They do not alter or alias the
+  primary Morlet domains.
+- At the matched-control interaction boundary only, the fixed identity contains
+  the stain-separation specification hash plus the control specification,
+  canonical-kernel, and spatial-execution hashes in place of the Morlet hash
+  trio. The primary and formal Morlet boundary remains unchanged.
+- filter-bank specification:
+  `sha256:30c1d75b428e27efcdf9c6a0e71b3c7326f12aebf93b930e15c7b628fe84a308`;
+- canonical kernels:
+  `sha256:dcf537ddb83b4699ebe6acbfb6d78d37b1e507fac54a0cf656919950c1b8848a`;
+- spatial execution:
+  `sha256:e1002b5ab0eefd1cc00072935e8edc3ec2240667aab804831fa2977e65d37cde`;
+- fixed state:
+  `sha256:15645cbe124ec8a7036cd4d4e4b082fa005dbafe686c3d758cf6b59a3205c438`.
+
+Scientific and governance boundary:
+
+- This control matches the named spatial envelope, support, kernel count, energy,
+  DC, and downstream representation invariants. Random phase changes
+  frequency-domain structure; it does not control every spectral factor or prove
+  a causal benefit of all Morlet physical structure.
+- The existing Morlet frontend, `fixed-he-morlet-linear-v1` identity, formal Run
+  ID `phase1-cam16-baseline-b32-v2`, seeds `1729` and `3407`, formal artifacts,
+  data splits, test prohibition, and project phase remain unchanged.
+- This decision authorizes interface implementation, focused tests, and a wholly
+  synthetic smoke only. It does not authorize real training, dataset access, test
+  access, release/tag work, a spectrum-matched extension, or a phase transition.

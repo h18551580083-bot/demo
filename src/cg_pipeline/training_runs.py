@@ -133,6 +133,7 @@ def _exploratory_metadata(
         "source_manifest_sha256": bundle.source_manifest_sha256,
         "effective_split_hashes": bundle.effective_split_hashes,
         "fixed_frontend_identity": model.frontend.fixed_state_identity(),
+        "frontend_artifact_identity": model.frontend.artifact_identity(),
         **isolation_claim_fields(),
         "seed": seed,
     }
@@ -152,7 +153,10 @@ def run_exploratory_seed(
     configure_determinism(seed)
     seed_dir = output_base / f"seed-{seed}"
     seed_dir.mkdir(parents=True, exist_ok=False)
-    model = FixedHEClassifier(frontend_backend=str(config.model["frontend_backend"])).to(device)
+    model = FixedHEClassifier(
+        frontend_backend=str(config.model["frontend_backend"]),
+        frontend_variant=config.frontend_variant,
+    ).to(device)
     optimizer = build_optimizer(config, model)
     base = _exploratory_metadata(
         config, bundle, model, seed=seed, requested_overrides=requested_overrides
