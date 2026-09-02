@@ -25,7 +25,11 @@ from cg_pipeline.training import (
     save_checkpoint,
     train_one_step,
 )
-from cg_pipeline.training_runs import load_complete_epoch_history, run_formal_seed
+from cg_pipeline.training_runs import (
+    load_complete_epoch_history,
+    run_exploratory_seed,
+    run_formal_seed,
+)
 
 
 def _state_metadata(
@@ -403,3 +407,71 @@ def test_formal_epoch_reports_duration_and_existing_metrics(
         "[FORMAL] seed=1729 epoch=0 time=2.5s (0.04m) loss=0.5000 "
         "val_slide_auc=0.8715 val_slide_acc=0.8243 best_epoch=0 best_auc=0.8715"
     )
+
+
+def test_exploratory_early_stopping_tracks_best_and_stops_at_patience(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    metrics = iter((0.5, 0.6, 0.6, 0.5))
+
+    class FakeFrontend:
+        @staticmethod
+        def fixed_state_identity() -> dict[str, str]:
+            return {"fixed": "identity"}
+
+        @staticmethod
+        def artifact_identity() -> dict[str, str]:
+            return {"frontend_variant": "matched_control"}
+
+    class FakeModel:
+        frontend = FakeFrontend()
+
+        def to(self, _device: torch.device) -> FakeModel:
+            return self
+
+    monkeypatch.setattr(training_runs, "configure_determinism", lambda _seed: None)
+    monkeypatch.setattr(training_runs, "FixedHEClassifier", lambda **_kwargs: FakeModel())
+    monkeypatch.setattr(training_runs, "build_optimizer", lambda *_args: object())
+    monkeypatch.setattr(training_runs, "_train_epoch", lambda *_args, **_kwargs: [0.5])
+    monkeypatch.setattr(
+        training_runs,
+        "_validation_report",
+        lambda *_args, **_kwargs: {"slide_auroc": {"value": next(metrics)}},
+    )
+    monkeypatch.setattr(
+        training_runs,
+        "_state_metadata",
+        lambda *_args, epoch, **_kwargs: {"epoch": epoch},
+    )
+    monkeypatch.setattr(
+        training_runs,
+        "save_checkpoint",
+        lambda path, *_args, **_kwargs: path.write_bytes(b"checkpoint-placeholder"),
+    )
+    config = SimpleNamespace(
+        execution={"run_id": "matched-control-test", "max_steps": 0},
+        model={"frontend_backend": "fft"},
+        frontend_variant="matched_control",
+        training={"max_epochs": 6, "early_stopping_patience": 2},
+    )
+    bundle = SimpleNamespace(
+        source_manifest_sha256="sha256:" + "2" * 64,
+        effective_split_hashes={"train": "sha256:" + "3" * 64},
+    )
+
+    result = run_exploratory_seed(
+        config,
+        bundle,
+        object(),
+        object(),
+        torch.device("cpu"),
+        tmp_path,
+        seed=1729,
+        requested_overrides={},
+    )
+
+    assert result["best_epoch"] == 1
+    assert result["best_validation_slide_auroc"] == 0.6
+    assert result["epochs_completed"] == 4
+    assert result["early_stopping_triggered"] is True
+    assert (tmp_path / "seed-1729" / "epoch-0001.pt").is_file()

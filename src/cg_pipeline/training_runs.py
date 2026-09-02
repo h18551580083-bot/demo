@@ -162,7 +162,7 @@ def run_exploratory_seed(
         config, bundle, model, seed=seed, requested_overrides=requested_overrides
     )
     history: list[dict[str, Any]] = []
-    best_metric, best_epoch, total_steps = -float("inf"), -1, 0
+    best_metric, best_epoch, total_steps, no_improvement = -float("inf"), -1, 0, 0
     max_steps = int(config.execution["max_steps"])
     for epoch in range(int(config.training["max_epochs"])):
         remaining = max_steps - total_steps if max_steps else None
@@ -184,7 +184,9 @@ def run_exploratory_seed(
         )
         metric = float(evaluation["slide_auroc"]["value"])
         if metric > best_metric:
-            best_metric, best_epoch = metric, epoch
+            best_metric, best_epoch, no_improvement = metric, epoch, 0
+        else:
+            no_improvement += 1
         metadata = _state_metadata(base, model, optimizer, epoch=epoch, steps_completed=total_steps)
         epoch_report = {
             "schema": "exploratory-train-epoch-v1",
@@ -206,6 +208,8 @@ def run_exploratory_seed(
         history.append(epoch_report)
         if max_steps and total_steps >= max_steps:
             break
+        if no_improvement >= int(config.training["early_stopping_patience"]):
+            break
     if not history:
         raise RuntimeError("exploratory training completed no optimizer steps")
     return {
@@ -216,6 +220,8 @@ def run_exploratory_seed(
         "best_validation_slide_auroc": best_metric,
         "epochs_completed": len(history),
         "steps_completed": total_steps,
+        "early_stopping_triggered": no_improvement
+        >= int(config.training["early_stopping_patience"]),
         "status": "complete",
     }
 
