@@ -1865,3 +1865,29 @@ Scientific and governance boundary:
 - This decision authorizes interface implementation, focused tests, and a wholly
   synthetic smoke only. It does not authorize real training, dataset access, test
   access, release/tag work, a spectrum-matched extension, or a phase transition.
+
+## 2026-09-03 — Prepare the Phase 1 matched-control comparison configuration
+
+- Add `configs/phase1_matched_control.toml` for the planned controlled comparison
+  with the Phase 1 baseline in `configs/phase1_baseline.toml`. The control uses the
+  existing frozen envelope-matched random-phase frontend; this does not establish
+  complete spectral isolation or any empirical performance conclusion.
+- The new Run ID is `phase1-cam16-matched-control-b32-v1`, with output root
+  `artifacts/formal_runs/phase1-cam16-matched-control-b32-v1`,
+  `model.contract_id = "fixed-he-matched-control-linear-v1"`, and explicit
+  `model.frontend_variant = "matched_control"`.
+- Apart from frontend selection and the corresponding experiment identities, all
+  conditions are copied unchanged from the baseline: data and train/validation
+  manifests, batch size 32, AdamW and learning rate `0.001`, maximum 20 epochs,
+  early-stopping patience 5 and minimum delta `0`, seeds `[1729, 3407]`, checkpoint
+  rules, evaluation contract, determinism, and protected precision. H/E separation,
+  interaction, pooling, classifier, and the 9473 trainable electronic scalars
+  retain their existing contracts; the frontend remains fixed.
+- This is configuration preparation, not an executable formal-training entry yet.
+  The current loader rejects it with `formal training and preflight are Morlet-only`
+  before data access. Formal matched-control support still needs implementation
+  and validation; this configuration-only change does not remove that gate or
+  supersede the 2026-09-01 exploratory-only implementation boundary.
+- The existing baseline configuration and completed artifacts remain unchanged.
+  No training, dataset/test access, release/tag work, or phase transition is
+  performed or authorized by this configuration preparation.
