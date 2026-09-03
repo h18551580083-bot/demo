@@ -1922,3 +1922,24 @@ Scientific and governance boundary:
   formal artifacts, publish a release/tag, or advance the project phase. Runtime
   authorization, CUDA, train/validation safety, determinism, and the one-approved-
   seed-per-invocation contract remain required.
+
+## 2026-09-03 — Remove matched-control frontend identity hash gates
+
+- Human approval removes the matched-control specification, canonical-kernel,
+  spatial-execution, and fixed-state SHA-256 allowlist comparisons from generator,
+  frontend construction, and preflight. This supersedes the hash-lock requirements
+  in the earlier matched-control decisions; their recorded hashes are historical.
+- Frontend variant selection is managed by configuration (`frontend_variant` and
+  `contract_id`) and Git commit. `phase1_matched_control.toml` has no frontend state
+  hash field. Observed hashes remain available for provenance and cache identity,
+  but matched-control execution does not require a predefined frontend hash.
+- Preflight uses `matched_control_numerical` instead of `matched_control_identity`:
+  construction still validates the control bank's DC and unit energy. Generate a
+  new preflight report for this gate; reports with only the old identity gate do
+  not satisfy it. Morlet defaults and existing numerical, identity, and spectral
+  audits are unchanged.
+- Data configuration, splits, training protocol, evaluation contract, frontend
+  immutability, 9473 trainable electronic scalars, checkpoint/resume integrity,
+  and output non-overwrite rules remain unchanged. This approval covers code,
+  synthetic verification, commit, and push; it does not execute real training,
+  access real datasets or final test data, or advance the project phase.

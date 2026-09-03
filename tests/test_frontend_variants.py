@@ -128,18 +128,6 @@ def test_matched_control_bank_is_frozen_deterministic_and_ordered() -> None:
     assert first.kernels64.flags.c_contiguous
     assert np.array_equal(first.kernels64, second.kernels64)
     assert first.channel_metadata == generate_morlet_bundle().channel_metadata
-    assert first.specification_hash == second.specification_hash
-    assert first.canonical_kernel_hash == second.canonical_kernel_hash
-    assert first.spatial_execution_hash == second.spatial_execution_hash
-    assert first.specification_hash == (
-        "sha256:30c1d75b428e27efcdf9c6a0e71b3c7326f12aebf93b930e15c7b628fe84a308"
-    )
-    assert first.canonical_kernel_hash == (
-        "sha256:dcf537ddb83b4699ebe6acbfb6d78d37b1e507fac54a0cf656919950c1b8848a"
-    )
-    assert first.spatial_execution_hash == (
-        "sha256:e1002b5ab0eefd1cc00072935e8edc3ec2240667aab804831fa2977e65d37cde"
-    )
     assert max(first.validation["complex128_zero_dc_error"]) <= 1e-12
     assert max(first.validation["complex128_unit_energy_error"]) <= 1e-12
     assert max(first.validation["complex64_zero_dc_error"]) <= 1e-6
@@ -208,9 +196,6 @@ def test_frontend_variants_have_distinct_frozen_artifact_identities() -> None:
     assert first_control["filter_bank_specification_hash"].startswith("sha256:")
     assert first_control["canonical_kernel_hash"].startswith("sha256:")
     assert first_control["spatial_execution_hash"].startswith("sha256:")
-    assert first_control["fixed_state_sha256"] == (
-        "sha256:15645cbe124ec8a7036cd4d4e4b082fa005dbafe686c3d758cf6b59a3205c438"
-    )
     assert all(value.startswith("sha256:") for value in first_control.values())
 
     artifact_identity = first_frontend.artifact_identity()

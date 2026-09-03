@@ -1,4 +1,4 @@
-"""Frozen envelope-matched random-phase control for exploratory ablation."""
+"""Frozen envelope-matched random-phase control for frontend comparisons."""
 
 from __future__ import annotations
 
@@ -13,19 +13,6 @@ CONTROL_GENERATOR_VERSION = "frozen-envelope-matched-random-phase-v1"
 CONTROL_RNG = "PCG64DXSM"
 CONTROL_SEED = 20260901
 CONTROL_CONTRACT_ID = "fixed-he-matched-control-linear-v1"
-
-EXPECTED_CONTROL_SPECIFICATION_HASH = (
-    "sha256:30c1d75b428e27efcdf9c6a0e71b3c7326f12aebf93b930e15c7b628fe84a308"
-)
-EXPECTED_CONTROL_CANONICAL_KERNEL_HASH = (
-    "sha256:dcf537ddb83b4699ebe6acbfb6d78d37b1e507fac54a0cf656919950c1b8848a"
-)
-EXPECTED_CONTROL_SPATIAL_EXECUTION_HASH = (
-    "sha256:e1002b5ab0eefd1cc00072935e8edc3ec2240667aab804831fa2977e65d37cde"
-)
-EXPECTED_CONTROL_FIXED_STATE_SHA256 = (
-    "sha256:15645cbe124ec8a7036cd4d4e4b082fa005dbafe686c3d758cf6b59a3205c438"
-)
 
 
 @dataclass(frozen=True)
@@ -132,16 +119,6 @@ def generate_matched_control_bundle() -> MatchedControlBundle:
     spatial_hash = domain_hash(
         "cg/matched-control-kernel-spatial-exec/v1", spatial_header, spatial_payload
     )
-    observed = (specification_hash, canonical_hash, spatial_hash)
-    expected = (
-        EXPECTED_CONTROL_SPECIFICATION_HASH,
-        EXPECTED_CONTROL_CANONICAL_KERNEL_HASH,
-        EXPECTED_CONTROL_SPATIAL_EXECUTION_HASH,
-    )
-    if observed != expected:
-        raise ValueError(
-            f"matched-control identity mismatch: expected {expected!r}, observed {observed!r}"
-        )
     return MatchedControlBundle(
         kernels128=kernels128,
         kernels64=kernels64,

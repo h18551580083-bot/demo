@@ -56,8 +56,13 @@ The default and primary frontend remains `fixed-he-morlet-linear-v1`. The approv
 `fixed-he-matched-control-linear-v1` comparison replaces only that fixed frontend
 with the frozen envelope-matched random-phase control; all other baseline training
 and evaluation conditions remain identical. Morlet retains its numerical and
-spectral checks. Matched-control preflight verifies the frozen control bank's DC,
-unit energy, kernel identities, and fixed state; Morlet spectral coverage is
+spectral checks. Matched-control preflight verifies the frozen control bank's DC
+and unit energy through the `matched_control_numerical` gate. The matched-control
+frontend variant is managed by configuration (`frontend_variant`, `contract_id`)
+and Git commit, without a runtime frontend identity hash gate. Observed hashes
+remain provenance metadata; they are not compared with a fixed SHA-256 allowlist.
+Optimizer-step immutability and checkpoint/resume integrity checks remain enforced.
+Morlet's existing behavior is unchanged. Morlet spectral coverage is
 not applicable and must not be reported as passed for this control. Preflight
 consumption requires the gate for the configured frontend. This control does not
 claim complete spectral isolation. See the 2026-09-03 decisions.

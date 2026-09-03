@@ -15,7 +15,6 @@ from .control_bank import (
     CONTROL_GENERATOR_VERSION,
     CONTROL_RNG,
     CONTROL_SEED,
-    EXPECTED_CONTROL_FIXED_STATE_SHA256,
     generate_matched_control_bundle,
 )
 from .identity import domain_hash
@@ -135,7 +134,6 @@ class _FixedHEWaveletFrontend(nn.Module):
         identity_fields: dict[str, str],
         canonical_kernel_hash: str,
         spatial_execution_hash: str,
-        expected_fixed_state_sha256: str | None = None,
     ) -> None:
         super().__init__()
         if backend not in {"fft", "spatial"}:
@@ -176,15 +174,6 @@ class _FixedHEWaveletFrontend(nn.Module):
         self._canonical_kernel_hash = canonical_kernel_hash
         self._spatial_execution_hash = spatial_execution_hash
         self._declared_fixed_identity = self.fixed_state_identity()
-        if (
-            expected_fixed_state_sha256 is not None
-            and self._declared_fixed_identity["fixed_state_sha256"] != expected_fixed_state_sha256
-        ):
-            raise FrontendContractError(
-                "fixed matched-control state identity mismatch: "
-                f"expected {expected_fixed_state_sha256}, observed "
-                f"{self._declared_fixed_identity['fixed_state_sha256']}"
-            )
         self._fixed_identity_cache_token = self._fixed_state_token()
         self._kernel_fft_cache: torch.Tensor | None = None
         self._kernel_fft_cache_key: _FFTCacheKey | None = None
@@ -336,7 +325,7 @@ class FixedHEMorletFrontend(_FixedHEWaveletFrontend):
 
 
 class FixedHEMatchedControlFrontend(_FixedHEWaveletFrontend):
-    """Immutable envelope-matched random-phase exploratory control frontend."""
+    """Immutable envelope-matched random-phase control frontend."""
 
     def __init__(self, *, backend: str) -> None:
         bundle = generate_matched_control_bundle()
@@ -352,7 +341,6 @@ class FixedHEMatchedControlFrontend(_FixedHEWaveletFrontend):
             },
             canonical_kernel_hash=bundle.canonical_kernel_hash,
             spatial_execution_hash=bundle.spatial_execution_hash,
-            expected_fixed_state_sha256=EXPECTED_CONTROL_FIXED_STATE_SHA256,
         )
 
     def artifact_identity(self) -> dict[str, str]:

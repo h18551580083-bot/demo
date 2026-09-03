@@ -1,5 +1,6 @@
 # Controlled frontend replacement for the Phase 1 Morlet baseline.
 # Formal authorization and frontend-specific preflight remain required.
+# Frontend variant is managed by configuration and Git commit, without a state hash lock.
 
 schema_version = "phase0-experiment-config-v2"
 

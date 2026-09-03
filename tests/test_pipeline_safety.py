@@ -11,12 +11,12 @@ import pytest
 import torch
 from PIL import Image
 
+import cg_pipeline.control_bank as control_bank_module
 import cg_pipeline.pipeline as pipeline_module
 import cg_pipeline.preflight as preflight_module
 import cg_pipeline.runtime as runtime_module
 from cg_pipeline import training_runs
 from cg_pipeline.config import ConfigError, load_experiment_config
-from cg_pipeline.control_bank import EXPECTED_CONTROL_FIXED_STATE_SHA256
 from cg_pipeline.pipeline import Phase0BlockedError, run_formal_training, run_preflight
 from cg_pipeline.runtime import prediction_ledger, validate_training_data
 
@@ -339,19 +339,21 @@ def test_cuda_unavailable_blocks_preflight(tmp_path: Path, monkeypatch: pytest.M
     assert "configured_device" in report["blocking_gates"]
 
 
-def test_matched_control_preflight_rejects_changed_fixed_identity(
+def test_matched_control_preflight_accepts_unlocked_frontend_hashes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     config = load_experiment_config(_formal_config(tmp_path, "matched_control"))
-    model = preflight_module.FixedHEClassifier(
-        frontend_backend="fft", frontend_variant="matched_control"
+    # Simulate different hash values and harmless platform-level pinv rounding.
+    monkeypatch.setattr(
+        control_bank_module, "domain_hash", lambda *args: "sha256:" + "0" * 64
     )
-    identity = model.frontend.fixed_state_identity()
-    identity["fixed_state_sha256"] = "sha256:" + "0" * 64
-    monkeypatch.setattr(model.frontend, "fixed_state_identity", lambda: identity)
-    monkeypatch.setattr(preflight_module, "FixedHEClassifier", lambda **kwargs: model)
-    with pytest.raises(Phase0BlockedError, match="matched-control audit failed"):
-        preflight_module._model_audits(config, torch.device("cpu"))
+    pinv = np.linalg.pinv
+    monkeypatch.setattr(np.linalg, "pinv", lambda basis: np.nextafter(pinv(basis), np.inf))
+
+    audit = preflight_module._model_audits(config, torch.device("cpu"))
+
+    assert audit["matched_control_numerical_audit"]["status"] == "PASS"
+    assert audit["optimizer_ownership"]["optical_parameter_count"] == 0
 
 
 @pytest.mark.parametrize("variant", ["morlet", "matched_control"])
@@ -368,9 +370,9 @@ def test_formal_training_rejects_preflight_for_the_other_frontend(
         config, data_root=data, authorization_path=authorization, output_path=report_path,
     )
     expected_gate, wrong_gate = (
-        ("morlet_spectral_coverage", "matched_control_identity")
+        ("morlet_spectral_coverage", "matched_control_numerical")
         if variant == "morlet"
-        else ("matched_control_identity", "morlet_spectral_coverage")
+        else ("matched_control_numerical", "morlet_spectral_coverage")
     )
     report["passed_gates"].remove(expected_gate)
     report["passed_gates"].append(wrong_gate)
@@ -410,15 +412,12 @@ def test_formal_training_runs_only_the_selected_seed_under_an_existing_run(
     if variant == "morlet":
         assert report["morlet_identity_audit"]["status"] == "PASS"
         assert "morlet_spectral_coverage" in report["passed_gates"]
-        assert "matched_control_identity" not in report["passed_gates"]
+        assert "matched_control_numerical" not in report["passed_gates"]
     else:
-        assert report["matched_control_identity_audit"]["status"] == "PASS"
-        assert "matched_control_identity" in report["passed_gates"]
+        assert report["matched_control_numerical_audit"]["status"] == "PASS"
+        assert "matched_control_numerical" in report["passed_gates"]
         assert "morlet_spectral_coverage" not in report["passed_gates"]
         assert "morlet_spectral_coverage" in report["not_applicable_gates"]
-        assert report["fixed_frontend_identity"]["fixed_state_sha256"] == (
-            EXPECTED_CONTROL_FIXED_STATE_SHA256
-        )
     assert report["optimizer_ownership"]["electronic_parameter_count"] == 9473
     assert report["optimizer_ownership"]["optical_parameter_count"] == 0
     untracked = repository / "untracked-before-train.py"
