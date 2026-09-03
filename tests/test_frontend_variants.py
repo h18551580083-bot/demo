@@ -39,7 +39,7 @@ def _with_variant(source: str, variant: str) -> str:
     )
 
 
-def test_frontend_variant_config_is_optional_exploratory_only_and_not_a_cli_override(
+def test_frontend_variant_config_supports_both_modes_and_is_not_a_cli_override(
     tmp_path: Path,
 ) -> None:
     exploratory_source = Path("configs/exploratory_train.toml").read_text(encoding="utf-8")
@@ -85,8 +85,35 @@ def test_frontend_variant_config_is_optional_exploratory_only_and_not_a_cli_over
 
     formal_path = tmp_path / "formal-control.toml"
     formal_path.write_text(_with_variant(formal_source, "matched_control"), encoding="utf-8")
-    with pytest.raises(ConfigError, match="formal.*Morlet-only"):
-        load_experiment_config(formal_path)
+    formal_control = load_experiment_config(formal_path)
+    assert formal_control.execution_kind == "formal_train"
+    assert formal_control.frontend_variant == "matched_control"
+
+
+@pytest.mark.parametrize(
+    ("variant", "contract_id"),
+    [
+        ("morlet", "fixed-he-matched-control-linear-v1"),
+        ("matched_control", "fixed-he-morlet-linear-v1"),
+        ("matched_control", "unknown"),
+        ("morlet", "unknown"),
+        ("unknown", "fixed-he-morlet-linear-v1"),
+    ],
+)
+def test_formal_frontend_contract_mismatches_fail_closed(
+    tmp_path: Path, variant: str, contract_id: str
+) -> None:
+    source = Path("configs/phase1_baseline.toml").read_text(encoding="utf-8")
+    path = tmp_path / "invalid-formal.toml"
+    path.write_text(
+        source.replace(
+            'contract_id = "fixed-he-morlet-linear-v1"',
+            f'contract_id = "{contract_id}"\nfrontend_variant = "{variant}"',
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(ConfigError):
+        load_experiment_config(path)
 
 
 def test_matched_control_bank_is_frozen_deterministic_and_ordered() -> None:

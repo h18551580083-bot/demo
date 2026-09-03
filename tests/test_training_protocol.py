@@ -378,6 +378,7 @@ def test_formal_epoch_reports_duration_and_existing_metrics(
     )
     config = SimpleNamespace(
         model={"frontend_backend": "fft"},
+        frontend_variant="morlet",
         training={"max_epochs": 1, "early_stopping_patience": 10},
     )
     bundle = SimpleNamespace(

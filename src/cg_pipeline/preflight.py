@@ -12,6 +12,12 @@ import torch
 from .artifacts import PipelineBlockedError, read_json_object, write_json_exclusive
 from .claims import PATIENT_LEVEL_CLAIM_ALLOWED, PATIENT_LEVEL_ISOLATION, isolation_claim_fields
 from .config import ExperimentConfig
+from .control_bank import (
+    EXPECTED_CONTROL_CANONICAL_KERNEL_HASH,
+    EXPECTED_CONTROL_FIXED_STATE_SHA256,
+    EXPECTED_CONTROL_SPATIAL_EXECUTION_HASH,
+    EXPECTED_CONTROL_SPECIFICATION_HASH,
+)
 from .data import ManifestBundle
 from .model import FixedHEClassifier
 from .morlet import audit_morlet_identity, generate_morlet_bundle, validate_spectral_coverage
@@ -23,12 +29,19 @@ _REQUIRED_PASSED_GATES = {
     "manifest_and_disk",
     "slide_id_isolation",
     "fixed_frontend",
-    "morlet_spectral_coverage",
     "optimizer_ownership",
     "precision_and_determinism",
     "test_access_disabled",
     "formal_training_authorization",
 }
+
+
+def _frontend_gate(config: ExperimentConfig) -> str:
+    return (
+        "morlet_spectral_coverage"
+        if config.frontend_variant == "morlet"
+        else "matched_control_identity"
+    )
 
 
 def validate_training_authorization(path: Path) -> dict[str, Any]:
@@ -49,27 +62,48 @@ def validate_training_authorization(path: Path) -> dict[str, Any]:
 
 
 def _model_audits(config: ExperimentConfig, device: torch.device) -> dict[str, Any]:
-    model = FixedHEClassifier(frontend_backend=str(config.model["frontend_backend"])).to(device)
+    model = FixedHEClassifier(
+        frontend_backend=str(config.model["frontend_backend"]),
+        frontend_variant=config.frontend_variant,
+    ).to(device)
     fixed_identity = model.frontend.fixed_state_identity()
-    morlet_bundle = generate_morlet_bundle()
-    spectral = validate_spectral_coverage(morlet_bundle)
-    morlet_audit = audit_morlet_identity(morlet_bundle, spectral_coverage=spectral)
-    fixed_matches = all(
-        (
-            fixed_identity.get("morlet_parameter_hash") == morlet_bundle.parameter_hash,
-            fixed_identity.get("canonical_kernel_hash") == morlet_bundle.canonical_kernel_hash,
-            fixed_identity.get("spatial_execution_hash") == morlet_bundle.spatial_execution_hash,
+    if config.frontend_variant == "morlet":
+        morlet_bundle = generate_morlet_bundle()
+        spectral = validate_spectral_coverage(morlet_bundle)
+        morlet_audit = audit_morlet_identity(morlet_bundle, spectral_coverage=spectral)
+        fixed_matches = all(
+            (
+                fixed_identity.get("morlet_parameter_hash") == morlet_bundle.parameter_hash,
+                fixed_identity.get("canonical_kernel_hash") == morlet_bundle.canonical_kernel_hash,
+                fixed_identity.get("spatial_execution_hash") == morlet_bundle.spatial_execution_hash,
+            )
         )
-    )
-    if morlet_audit["status"] != "PASS" or not fixed_matches:
-        raise PipelineBlockedError("fixed frontend Morlet audit failed")
-    if spectral["status"] != "PASS":
-        raise PipelineBlockedError("Morlet spectral coverage failed")
+        if morlet_audit["status"] != "PASS" or not fixed_matches:
+            raise PipelineBlockedError("fixed frontend Morlet audit failed")
+        if spectral["status"] != "PASS":
+            raise PipelineBlockedError("Morlet spectral coverage failed")
+        frontend_audit = {
+            "morlet_identity_audit": morlet_audit,
+            "morlet_spectral_coverage": spectral,
+        }
+    else:
+        # Construction validates the frozen bank's DC, energy, and kernel identities.
+        expected = {
+            "filter_bank_specification_hash": EXPECTED_CONTROL_SPECIFICATION_HASH,
+            "canonical_kernel_hash": EXPECTED_CONTROL_CANONICAL_KERNEL_HASH,
+            "spatial_execution_hash": EXPECTED_CONTROL_SPATIAL_EXECUTION_HASH,
+            "fixed_state_sha256": EXPECTED_CONTROL_FIXED_STATE_SHA256,
+        }
+        if any(fixed_identity.get(key) != value for key, value in expected.items()):
+            raise PipelineBlockedError("fixed frontend matched-control audit failed")
+        frontend_audit = {
+            "matched_control_identity_audit": {"status": "PASS", **fixed_identity},
+            "frontend_artifact_identity": model.frontend.artifact_identity(),
+        }
     optimizer = build_optimizer(config, model)
     return {
         "fixed_frontend_identity": fixed_identity,
-        "morlet_identity_audit": morlet_audit,
-        "morlet_spectral_coverage": spectral,
+        **frontend_audit,
         "optimizer_ownership": audit_optimizer_ownership(model, optimizer),
     }
 
@@ -124,12 +158,15 @@ def perform_preflight(
         "formal_training_authorization",
     }
     blocked: list[str] = []
+    not_applicable = ["patient_level_isolation"]
+    if config.frontend_variant == "matched_control":
+        not_applicable.append("morlet_spectral_coverage")
     evidence: dict[str, Any] = {}
     if device.type == "cuda" and not torch.cuda.is_available():
         blocked.append("configured_device")
     else:
         evidence = _model_audits(config, device)
-        passed.update({"fixed_frontend", "morlet_spectral_coverage", "optimizer_ownership"})
+        passed.update({"fixed_frontend", _frontend_gate(config), "optimizer_ownership"})
     report = _base_report(bundle, batch_contract(config, bundle), determinism, configured)
     report.update(evidence)
     report.update(
@@ -137,7 +174,7 @@ def perform_preflight(
             "status": "PASS" if not blocked else "FAIL",
             "effective_preflight_device": configured if not blocked else "unavailable",
             "passed_gates": sorted(passed),
-            "not_applicable_gates": ["patient_level_isolation"],
+            "not_applicable_gates": not_applicable,
             "blocking_gates": blocked,
         }
     )
@@ -166,12 +203,13 @@ def consume_preflight_report(
     preflight_report_path: Path,
 ) -> tuple[dict[str, Any], ManifestBundle]:
     report = read_json_object(preflight_report_path)
+    required_gates = _REQUIRED_PASSED_GATES | {_frontend_gate(config)}
     checks = {
         "status": report.get("status") == "PASS",
         "blocking_gates": report.get("blocking_gates") == [],
         "training_started": report.get("training_started") is False,
         "test_split_accessed": report.get("test_split_accessed") is False,
-        "required_gates": _REQUIRED_PASSED_GATES.issubset(set(report.get("passed_gates", []))),
+        "required_gates": required_gates.issubset(set(report.get("passed_gates", []))),
     }
     failed = [name for name, passed in checks.items() if not passed]
     if failed:

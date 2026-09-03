@@ -119,6 +119,22 @@ def _formal_document() -> str:
     )
 
 
+def test_formal_matched_control_changes_only_frontend_and_run_identity() -> None:
+    configs = Path(__file__).resolve().parents[1] / "configs"
+    baseline = load_experiment_config(configs / "phase1_baseline.toml")
+    control = load_experiment_config(configs / "phase1_matched_control.toml")
+    expected = baseline.as_dict()
+    expected["execution"]["run_id"] = "phase1-cam16-matched-control-b32-v1"
+    expected["execution"]["output_root"] = (
+        "artifacts/formal_runs/phase1-cam16-matched-control-b32-v1"
+    )
+    expected["model"]["contract_id"] = "fixed-he-matched-control-linear-v1"
+    expected["model"]["frontend_variant"] = "matched_control"
+    assert control.as_dict() == expected
+    assert baseline.frontend_variant == "morlet"
+    assert control.frontend_variant == "matched_control"
+
+
 def test_config_is_strict_normalized_and_hashed(tmp_path: Path) -> None:
     path = tmp_path / "config.toml"
     path.write_text(_document(), encoding="utf-8")

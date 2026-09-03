@@ -12,8 +12,11 @@ import torch
 from PIL import Image
 
 import cg_pipeline.pipeline as pipeline_module
+import cg_pipeline.preflight as preflight_module
 import cg_pipeline.runtime as runtime_module
+from cg_pipeline import training_runs
 from cg_pipeline.config import ConfigError, load_experiment_config
+from cg_pipeline.control_bank import EXPECTED_CONTROL_FIXED_STATE_SHA256
 from cg_pipeline.pipeline import Phase0BlockedError, run_formal_training, run_preflight
 from cg_pipeline.runtime import prediction_ledger, validate_training_data
 
@@ -50,8 +53,9 @@ def _git_repository(tmp_path: Path) -> Path:
     return repository
 
 
-def _formal_config(tmp_path: Path) -> Path:
-    text = (REPOSITORY / "configs" / "phase1_baseline.toml").read_text(encoding="utf-8")
+def _formal_config(tmp_path: Path, variant: str = "morlet") -> Path:
+    filename = "phase1_baseline.toml" if variant == "morlet" else "phase1_matched_control.toml"
+    text = (REPOSITORY / "configs" / filename).read_text(encoding="utf-8")
     text = text.replace(
         'train_manifest_relpath = "metadata/training_manifest_train.csv"',
         'train_manifest_relpath = "package/training_manifest_train.csv"',
@@ -335,39 +339,111 @@ def test_cuda_unavailable_blocks_preflight(tmp_path: Path, monkeypatch: pytest.M
     assert "configured_device" in report["blocking_gates"]
 
 
-def test_formal_training_runs_only_the_selected_seed_under_an_existing_baseline(
+def test_matched_control_preflight_rejects_changed_fixed_identity(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    config = load_experiment_config(_formal_config(tmp_path, "matched_control"))
+    model = preflight_module.FixedHEClassifier(
+        frontend_backend="fft", frontend_variant="matched_control"
+    )
+    identity = model.frontend.fixed_state_identity()
+    identity["fixed_state_sha256"] = "sha256:" + "0" * 64
+    monkeypatch.setattr(model.frontend, "fixed_state_identity", lambda: identity)
+    monkeypatch.setattr(preflight_module, "FixedHEClassifier", lambda **kwargs: model)
+    with pytest.raises(Phase0BlockedError, match="matched-control audit failed"):
+        preflight_module._model_audits(config, torch.device("cpu"))
+
+
+@pytest.mark.parametrize("variant", ["morlet", "matched_control"])
+def test_formal_training_rejects_preflight_for_the_other_frontend(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, variant: str
+) -> None:
+    config = _formal_config(tmp_path, variant)
+    data = _data_root(tmp_path)
+    authorization = _authorization(tmp_path)
+    monkeypatch.setattr(pipeline_module.torch.cuda, "is_available", lambda: True)
+    _stub_model_audits(monkeypatch)
+    report_path = tmp_path / "preflight.json"
+    report = run_preflight(
+        config, data_root=data, authorization_path=authorization, output_path=report_path,
+    )
+    expected_gate, wrong_gate = (
+        ("morlet_spectral_coverage", "matched_control_identity")
+        if variant == "morlet"
+        else ("matched_control_identity", "morlet_spectral_coverage")
+    )
+    report["passed_gates"].remove(expected_gate)
+    report["passed_gates"].append(wrong_gate)
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    with pytest.raises(Phase0BlockedError, match="required_gates"):
+        run_formal_training(
+            config, data_root=data, authorization_path=authorization,
+            preflight_report_path=report_path, seed=1729,
+        )
+    assert not (tmp_path / "artifacts").exists()
+
+
+@pytest.mark.parametrize("variant", ["morlet", "matched_control"])
+def test_formal_training_runs_only_the_selected_seed_under_an_existing_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, variant: str
+) -> None:
     repository = _git_repository(tmp_path)
-    config = _formal_config(repository)
+    config = _formal_config(repository, variant)
+    loaded = load_experiment_config(config)
+    run_id = loaded.execution["run_id"]
     data = _data_root(repository)
     authorization = _authorization(repository)
     report_path = repository / "preflight.json"
     monkeypatch.setattr(pipeline_module.torch.cuda, "is_available", lambda: True)
-    _stub_model_audits(monkeypatch)
-    run_preflight(
+    model_audits = preflight_module._model_audits
+    monkeypatch.setattr(
+        preflight_module, "_model_audits",
+        lambda config, device: model_audits(config, torch.device("cpu")),
+    )
+    report = run_preflight(
         config,
         data_root=data,
         authorization_path=authorization,
         output_path=report_path,
     )
+    assert report["status"] == "PASS"
+    if variant == "morlet":
+        assert report["morlet_identity_audit"]["status"] == "PASS"
+        assert "morlet_spectral_coverage" in report["passed_gates"]
+        assert "matched_control_identity" not in report["passed_gates"]
+    else:
+        assert report["matched_control_identity_audit"]["status"] == "PASS"
+        assert "matched_control_identity" in report["passed_gates"]
+        assert "morlet_spectral_coverage" not in report["passed_gates"]
+        assert "morlet_spectral_coverage" in report["not_applicable_gates"]
+        assert report["fixed_frontend_identity"]["fixed_state_sha256"] == (
+            EXPECTED_CONTROL_FIXED_STATE_SHA256
+        )
+    assert report["optimizer_ownership"]["electronic_parameter_count"] == 9473
+    assert report["optimizer_ownership"]["optical_parameter_count"] == 0
     untracked = repository / "untracked-before-train.py"
     untracked.write_text("unrelated = True\n", encoding="utf-8")
     assert "?? untracked-before-train.py" in _git(repository, "status", "--porcelain")
     observed: list[int] = []
 
-    def fake_seed(*args: object, seed: int, **kwargs: object) -> dict[str, object]:
+    def cpu_seed(config, bundle, train, val, device, destination, *, seed, resume):
         observed.append(seed)
-        return {
-            "seed": seed,
-            "best_epoch": 0,
-            "best_validation_slide_auroc": 0.5,
-            "epochs_completed": 1,
-            "status": "complete",
-        }
+        assert config.frontend_variant == variant
+        return training_runs.run_formal_seed(
+            config, bundle, train, val, torch.device("cpu"), destination,
+            seed=seed, resume=resume,
+        )
 
-    monkeypatch.setattr(pipeline_module, "run_formal_seed", fake_seed)
-    destination = repository / "artifacts" / "formal_runs" / "phase1-cam16-baseline-b32-v2"
+    # Exercise real construction, checkpoints, and early stopping without data training.
+    monkeypatch.setattr(pipeline_module, "run_formal_seed", cpu_seed)
+    monkeypatch.setattr(training_runs, "_train_epoch", lambda *args, **kwargs: [0.5])
+    monkeypatch.setattr(
+        training_runs, "_validation_report",
+        lambda *args, **kwargs: {
+            "slide_auroc": {"value": 0.5}, "slide_metrics": {"accuracy": 0.5},
+        },
+    )
+    destination = repository / str(loaded.execution["output_root"])
     completed = destination / "seed-1729"
     completed.mkdir(parents=True)
     completion = {
@@ -386,10 +462,10 @@ def test_formal_training_runs_only_the_selected_seed_under_an_existing_baseline(
             seed=3407,
         )
     assert observed == []
-    completion["run_id"] = "phase1-cam16-baseline-b32-v2"
+    completion["run_id"] = run_id
     (completed / "completion.json").write_text(json.dumps(completion), encoding="utf-8")
     _, seed_status = pipeline_module._formal_seed_results(
-        destination, (1729, 3407), "phase1-cam16-baseline-b32-v2"
+        destination, (1729, 3407), run_id
     )
     assert seed_status == {"1729": "completed", "3407": "pending"}
     summary = run_formal_training(
@@ -410,8 +486,16 @@ def test_formal_training_runs_only_the_selected_seed_under_an_existing_baseline(
     generated_completion = json.loads(
         (destination / "seed-3407" / "completion.json").read_text(encoding="utf-8")
     )
-    assert generated_completion["run_id"] == "phase1-cam16-baseline-b32-v2"
+    assert generated_completion["run_id"] == run_id
     assert generated_completion["automatic_retry"] is False
+    epoch_report = json.loads((destination / "seed-3407" / "epoch-0000.json").read_text("utf-8"))
+    identities = epoch_report["identities"]
+    assert identities["fixed_frontend_identity"] == report["fixed_frontend_identity"]
+    assert generated_completion["epochs_completed"] == 6
+    if variant == "matched_control":
+        assert identities["frontend_artifact_identity"] == report["frontend_artifact_identity"]
+    else:
+        assert "frontend_artifact_identity" not in identities
     original_completion = (completed / "completion.json").read_bytes()
     with pytest.raises(FileExistsError):
         run_formal_training(

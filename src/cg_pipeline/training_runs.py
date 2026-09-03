@@ -303,7 +303,10 @@ def run_formal_seed(
     configure_determinism(seed)
     seed_dir = output_base / f"seed-{seed}"
     seed_dir.mkdir(parents=True, exist_ok=resume)
-    model = FixedHEClassifier(frontend_backend=str(config.model["frontend_backend"])).to(device)
+    model = FixedHEClassifier(
+        frontend_backend=str(config.model["frontend_backend"]),
+        frontend_variant=config.frontend_variant,
+    ).to(device)
     optimizer = build_optimizer(config, model)
     base = {
         "source_manifest_sha256": bundle.source_manifest_sha256,
@@ -312,6 +315,8 @@ def run_formal_seed(
         **isolation_claim_fields(),
         "seed": seed,
     }
+    if config.frontend_variant == "matched_control":
+        base["frontend_artifact_identity"] = model.frontend.artifact_identity()
     history, latest, expected = (
         load_complete_epoch_history(seed_dir, base) if resume else ([], None, None)
     )

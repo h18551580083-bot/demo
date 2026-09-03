@@ -44,18 +44,29 @@ checks, and explicitly non-formal experiments. Exploratory execution requires no
 formal authorization or preflight; every artifact must state
 `formal_experiment=false` and `experiment_mode=exploratory_train`, and no result may
 be promoted or renamed as formal evidence. Formal training reads current parameters
-from `configs/phase1_baseline.toml` and a lightweight authorization record from
+from `configs/phase1_baseline.toml` or the controlled frontend-replacement profile
+`configs/phase1_matched_control.toml`, and a lightweight authorization record from
 `configs/formal_training_authorization.json`. The standalone preflight
 checks data availability and isolation, CUDA availability, the fixed frontend,
-Morlet numerical and spectral correctness, optimizer ownership, determinism, and
+frontend-specific correctness, optimizer ownership, determinism, and
 disabled test access. Its report is not bound to Git, code, config, release, or path
 identity. Historical release and tag records remain historical evidence only.
+
+The default and primary frontend remains `fixed-he-morlet-linear-v1`. The approved
+`fixed-he-matched-control-linear-v1` comparison replaces only that fixed frontend
+with the frozen envelope-matched random-phase control; all other baseline training
+and evaluation conditions remain identical. Morlet retains its numerical and
+spectral checks. Matched-control preflight verifies the frozen control bank's DC,
+unit energy, kernel identities, and fixed state; Morlet spectral coverage is
+not applicable and must not be reported as passed for this control. Preflight
+consumption requires the gate for the configured frontend. This control does not
+claim complete spectral isolation. See the 2026-09-03 decisions.
 
 The only real CAM16 training modes are `exploratory_train` and `formal_train`.
 Both are restricted to train/validation and expose no test-access parameter.
 They share manifest readability, legal split, and supplied `group_id`/`slide_id`
 cross-split isolation checks. `formal_train` additionally retains lightweight human
-authorization, CUDA, fixed-frontend/Morlet, optimizer, determinism, fixed-seed,
+authorization, CUDA, frontend-specific correctness, optimizer, determinism, fixed-seed,
 complete-epoch, validation-checkpoint, immutable-output, and provenance gates.
 
 ## 3. Locked project scope

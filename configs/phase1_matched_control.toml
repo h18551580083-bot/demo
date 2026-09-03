@@ -1,5 +1,5 @@
-# Prepared formal comparison profile; currently blocked at configuration loading.
-# Formal training and preflight are Morlet-only until formal control support is implemented.
+# Controlled frontend replacement for the Phase 1 Morlet baseline.
+# Formal authorization and frontend-specific preflight remain required.
 
 schema_version = "phase0-experiment-config-v2"
 

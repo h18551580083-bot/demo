@@ -331,8 +331,6 @@ def _validate_semantics(document: dict[str, Any]) -> None:
         "matched_control",
     }:
         raise ConfigError("model.frontend_variant must be morlet or matched_control")
-    if execution["kind"] == "formal_train" and frontend_variant != "morlet":
-        raise ConfigError("formal training and preflight are Morlet-only")
     if (
         frontend_variant == "matched_control"
         and document["model"]["contract_id"] != "fixed-he-matched-control-linear-v1"

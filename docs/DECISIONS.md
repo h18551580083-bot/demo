@@ -1891,3 +1891,34 @@ Scientific and governance boundary:
 - The existing baseline configuration and completed artifacts remain unchanged.
   No training, dataset/test access, release/tag work, or phase transition is
   performed or authorized by this configuration preparation.
+
+## 2026-09-03 — Enable formal matched-control frontend support
+
+- Human approval extends formal configuration, preflight, and seed execution to
+  `fixed-he-matched-control-linear-v1` with `frontend_variant = "matched_control"`.
+  This supersedes the 2026-09-01 exploratory-only restriction and resolves the
+  configuration-preparation blocker recorded above. Legacy configurations and
+  the default model constructor continue to select Morlet; variant/contract
+  mismatches and unknown frontends still fail closed, with no CLI override.
+- Matched-control remains the Phase 1 baseline's controlled frontend replacement:
+  only the fixed frontend and corresponding run/model/output identities differ.
+  Data, splits, batch size 32, AdamW, learning rate, epoch budget, early stopping,
+  seeds `[1729, 3407]`, checkpoint selection, evaluation, precision, and the 9473
+  trainable electronic scalars are unchanged. This frozen envelope-matched
+  random-phase control does not establish complete spectral isolation.
+- Formal preflight constructs the selected frontend. The control generator's
+  frozen DC, unit-energy, specification, canonical-kernel, spatial-execution, and
+  fixed-state checks remain enforced. The control requires the
+  `matched_control_identity` gate; `morlet_spectral_coverage` is explicitly not
+  applicable. Morlet keeps its existing numerical and spectral audits. A report
+  passing only the other frontend's gate cannot authorize the configured frontend.
+- Formal seed construction now receives the configured variant. Control
+  checkpoint/report metadata includes its frontend contract, generator, RNG,
+  control seed, and fixed identities. Morlet metadata remains unchanged so existing
+  baseline checkpoint/resume compatibility is preserved. Strict restore and
+  completed-output non-overwrite protections continue to apply.
+- This change enables the code path and its synthetic tests only. It does not
+  execute real training, read real datasets, access test data, change existing
+  formal artifacts, publish a release/tag, or advance the project phase. Runtime
+  authorization, CUDA, train/validation safety, determinism, and the one-approved-
+  seed-per-invocation contract remain required.
