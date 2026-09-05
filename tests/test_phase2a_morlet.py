@@ -1,5 +1,6 @@
 """Data-free Phase2-A parameter plumbing and Phase1 numerical regression."""
 
+import json
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -188,6 +189,13 @@ def test_theoretical_peak_depends_on_configuration():
     report = validate_phase2_morlet(bundle, sigma0="0.8", xi0="3*pi/4", gamma="0.5")
     assert report["status"] == "FAIL"
     assert not report["checks"]["configured_spectral_peaks"]
+
+
+def test_phase2_validity_report_is_strict_json_serializable():
+    report = validate_phase2_morlet(
+        generate_morlet_bundle(), sigma0="0.8", xi0="3*pi/4", gamma="0.5"
+    )
+    json.dumps(report, allow_nan=False)
 
 
 def test_nyquist_peak_and_runtime_only_corruption_fail():

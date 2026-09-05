@@ -116,8 +116,8 @@ def validate_phase2_morlet(
                 abs(reference - converged)
                 <= 64 * np.finfo(float).eps * max(abs(converged), np.finfo(float).tiny)
             ),
-            "peak_matches_theory": error_cells <= 1 + 64 * np.finfo(float).eps,
-            "runtime_peak_matches_theory": error64 <= 1 + 64 * np.finfo(float).eps,
+            "peak_matches_theory": bool(error_cells <= 1 + 64 * np.finfo(float).eps),
+            "runtime_peak_matches_theory": bool(error64 <= 1 + 64 * np.finfo(float).eps),
             "nyquist_margin": bool(
                 (np.abs(expected) < np.pi - step).all()
                 and (np.abs(observed) < np.pi - step).all()
