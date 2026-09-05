@@ -299,8 +299,11 @@ class _FixedHEWaveletFrontend(nn.Module):
 class FixedHEMorletFrontend(_FixedHEWaveletFrontend):
     """Immutable primary Morlet frontend; this module owns no Parameter."""
 
-    def __init__(self, *, backend: str) -> None:
-        bundle = generate_morlet_bundle()
+    def __init__(
+        self, *, backend: str, sigma0: str = "0.8", xi0: str = "3*pi/4", gamma: str = "0.5"
+    ) -> None:
+        bundle = generate_morlet_bundle(sigma0=sigma0, xi0=xi0, gamma=gamma)
+        self.morlet_parameters = {"sigma0": sigma0, "xi0": xi0, "gamma": gamma}
         super().__init__(
             backend=backend,
             kernel_name="morlet_kernels",
@@ -317,9 +320,14 @@ class FixedHEMorletFrontend(_FixedHEWaveletFrontend):
         self._parameter_hash = bundle.parameter_hash
 
     def artifact_identity(self) -> dict[str, str]:
+        parameters = self.morlet_parameters
+        changed = parameters != {"sigma0": "0.8", "xi0": "3*pi/4", "gamma": "0.5"}
         return {
             "frontend_variant": "morlet",
-            "frontend_contract_id": "fixed-he-morlet-linear-v1",
+            "frontend_contract_id": (
+                "fixed-he-morlet-phase2a-linear-v1" if changed else "fixed-he-morlet-linear-v1"
+            ),
+            **(parameters if changed else {}),
             **self.fixed_state_identity(),
         }
 

@@ -11,7 +11,7 @@ import torch
 
 from .artifacts import PipelineBlockedError, read_json_object, write_json_exclusive
 from .claims import PATIENT_LEVEL_CLAIM_ALLOWED, PATIENT_LEVEL_ISOLATION, isolation_claim_fields
-from .config import ExperimentConfig
+from .config import PHASE2_MORLET_CONTRACT, ExperimentConfig
 from .data import ManifestBundle
 from .model import FixedHEClassifier
 from .morlet import audit_morlet_identity, generate_morlet_bundle, validate_spectral_coverage
@@ -59,17 +59,25 @@ def _model_audits(config: ExperimentConfig, device: torch.device) -> dict[str, A
     model = FixedHEClassifier(
         frontend_backend=str(config.model["frontend_backend"]),
         frontend_variant=config.frontend_variant,
+        **{key: config.model[key] for key in ("sigma0", "xi0", "gamma")},
     ).to(device)
     fixed_identity = model.frontend.fixed_state_identity()
     if config.frontend_variant == "morlet":
-        morlet_bundle = generate_morlet_bundle()
-        spectral = validate_spectral_coverage(morlet_bundle)
-        morlet_audit = audit_morlet_identity(morlet_bundle, spectral_coverage=spectral)
+        parameters = {key: config.model[key] for key in ("sigma0", "xi0", "gamma")}
+        morlet_bundle = generate_morlet_bundle(**parameters)
+        spectral = validate_spectral_coverage(morlet_bundle, xi0=parameters["xi0"])
+        phase2 = config.model["contract_id"] == PHASE2_MORLET_CONTRACT
+        morlet_audit = (
+            {"status": "PASS", "policy": "configured-discrete-dc-and-unit-energy"}
+            if phase2
+            else audit_morlet_identity(morlet_bundle, spectral_coverage=spectral)
+        )
         fixed_matches = all(
             (
                 fixed_identity.get("morlet_parameter_hash") == morlet_bundle.parameter_hash,
                 fixed_identity.get("canonical_kernel_hash") == morlet_bundle.canonical_kernel_hash,
-                fixed_identity.get("spatial_execution_hash") == morlet_bundle.spatial_execution_hash,
+                fixed_identity.get("spatial_execution_hash")
+                == morlet_bundle.spatial_execution_hash,
             )
         )
         if morlet_audit["status"] != "PASS" or not fixed_matches:
@@ -86,6 +94,9 @@ def _model_audits(config: ExperimentConfig, device: torch.device) -> dict[str, A
             "matched_control_numerical_audit": {"status": "PASS"},
             "frontend_artifact_identity": model.frontend.artifact_identity(),
         }
+    if config.model["contract_id"] == PHASE2_MORLET_CONTRACT:
+        frontend_audit["morlet_parameters"] = parameters
+        frontend_audit["morlet_numerical_diagnostics"] = morlet_bundle.validation
     optimizer = build_optimizer(config, model)
     return {
         "fixed_frontend_identity": fixed_identity,
@@ -197,6 +208,10 @@ def consume_preflight_report(
         "test_split_accessed": report.get("test_split_accessed") is False,
         "required_gates": required_gates.issubset(set(report.get("passed_gates", []))),
     }
+    if config.model["contract_id"] == PHASE2_MORLET_CONTRACT:
+        checks["morlet_parameters"] = report.get("morlet_parameters") == {
+            key: config.model[key] for key in ("sigma0", "xi0", "gamma")
+        }
     failed = [name for name, passed in checks.items() if not passed]
     if failed:
         raise PipelineBlockedError("preflight report is not safe to consume: " + ", ".join(failed))

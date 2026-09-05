@@ -156,6 +156,7 @@ def run_exploratory_seed(
     model = FixedHEClassifier(
         frontend_backend=str(config.model["frontend_backend"]),
         frontend_variant=config.frontend_variant,
+        **{key: config.model[key] for key in ("sigma0", "xi0", "gamma")},
     ).to(device)
     optimizer = build_optimizer(config, model)
     base = _exploratory_metadata(
@@ -306,6 +307,7 @@ def run_formal_seed(
     model = FixedHEClassifier(
         frontend_backend=str(config.model["frontend_backend"]),
         frontend_variant=config.frontend_variant,
+        **{key: config.model[key] for key in ("sigma0", "xi0", "gamma")},
     ).to(device)
     optimizer = build_optimizer(config, model)
     base = {
@@ -317,6 +319,9 @@ def run_formal_seed(
     }
     if config.frontend_variant == "matched_control":
         base["frontend_artifact_identity"] = model.frontend.artifact_identity()
+    if config.model.get("contract_id") == "fixed-he-morlet-phase2a-linear-v1":
+        base["morlet_parameters"] = {key: config.model[key] for key in ("sigma0", "xi0", "gamma")}
+        base["frontend_contract_id"] = config.model["contract_id"]
     history, latest, expected = (
         load_complete_epoch_history(seed_dir, base) if resume else ([], None, None)
     )

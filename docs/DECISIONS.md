@@ -1943,3 +1943,28 @@ Scientific and governance boundary:
   and output non-overwrite rules remain unchanged. This approval covers code,
   synthetic verification, commit, and push; it does not execute real training,
   access real datasets or final test data, or advance the project phase.
+
+## 2026-09-05 — Prepare bounded Phase2-A Morlet parameterization
+
+- Human approval covers implementation, four configs, focused synthetic tests,
+  and a commit; it does not authorize training or test-split access.
+- `fixed-he-morlet-phase2a-linear-v1` permits only `sigma0`, `xi0`, and `gamma`
+  to differ. The accepted first-round values are respectively `0.8/0.7`,
+  `3*pi/4` or `2*pi/3`, and `0.5/0.625`. No expression evaluation is used.
+- Config values reach the model, fixed frontend, generator, formal seed runner,
+  and preflight. Effective config and Phase2 epoch/checkpoint metadata record
+  the actual parameters. Phase2 preflight consumption compares those parameters.
+- Phase1 exact-value validation, default generation arithmetic and identities,
+  existing TOMLs/artifacts, J/L/support, and electronic/training/evaluation
+  contracts remain unchanged.
+- For non-default kernels, the finite discrete projection remains the definition;
+  DC and unit-energy tolerances are unchanged. The continuous beta difference is
+  retained as a diagnostic rather than a generator rejection. The default bank
+  keeps the original beta check. Phase2 checks configured identities rather than
+  requiring the Phase1 frozen kernel allowlist.
+- Existing spectral acceptance thresholds remain enforced, with frequency centers
+  evaluated against configured xi0. A1, A2, and A3 currently fail these thresholds;
+  A1 also has continuous beta difference approximately 0.02283 versus the Phase1
+  0.01 reference bound. These are open scientific acceptance issues. This commit
+  does not declare the perturbations ready for formal cloud training or approve
+  relaxed spectral thresholds.

@@ -25,11 +25,23 @@ class ModelOutput:
 class FixedHEClassifier(nn.Module):
     """The exact 9473-scalar electronic backend after an immutable frontend."""
 
-    def __init__(self, *, frontend_backend: str, frontend_variant: str = "morlet") -> None:
+    def __init__(
+        self,
+        *,
+        frontend_backend: str,
+        frontend_variant: str = "morlet",
+        sigma0: str = "0.8",
+        xi0: str = "3*pi/4",
+        gamma: str = "0.5",
+    ) -> None:
         super().__init__()
         if frontend_variant == "morlet":
-            self.frontend = FixedHEMorletFrontend(backend=frontend_backend)
+            self.frontend = FixedHEMorletFrontend(
+                backend=frontend_backend, sigma0=sigma0, xi0=xi0, gamma=gamma
+            )
         elif frontend_variant == "matched_control":
+            if (sigma0, xi0, gamma) != ("0.8", "3*pi/4", "0.5"):
+                raise ValueError("matched_control requires the Phase1 Morlet envelope")
             self.frontend = FixedHEMatchedControlFrontend(backend=frontend_backend)
         else:
             raise ValueError("frontend_variant must be morlet or matched_control")

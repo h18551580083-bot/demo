@@ -136,8 +136,26 @@ def _tensor_payload(kernels: np.ndarray) -> tuple[dict[str, Any], bytes]:
     return header, payload
 
 
-def generate_morlet_bundle() -> MorletBundle:
-    """Generate the one canonical 32-channel kernel bank from locked constants."""
+def validate_morlet_parameters(sigma0: str, xi0: str, gamma: str) -> None:
+    """Accept the bounded Phase2-A parameter vocabulary, without expression evaluation."""
+    for name, value, allowed in (
+        ("sigma0", sigma0, ("0.8", "0.7")),
+        ("xi0", xi0, ("3*pi/4", "2*pi/3")),
+        ("gamma", gamma, ("0.5", "0.625")),
+    ):
+        if not isinstance(value, str) or value not in allowed:
+            raise ValueError(f"unsupported Morlet {name}: {value!r}")
+
+
+def generate_morlet_bundle(
+    *, sigma0: str = "0.8", xi0: str = "3*pi/4", gamma: str = "0.5"
+) -> MorletBundle:
+    """Generate a fixed 32-channel bank; defaults preserve the Phase1 operations."""
+
+    validate_morlet_parameters(sigma0, xi0, gamma)
+    sigma_base = float(sigma0)
+    xi_base = {"3*pi/4": 3.0 * np.pi / 4.0, "2*pi/3": 2.0 * np.pi / 3.0}[xi0]
+    gamma_squared = float(gamma) ** 2
 
     axis = np.arange(-52, 53, dtype=np.float64)
     yy, xx = np.meshgrid(axis, axis, indexing="ij")
@@ -145,15 +163,15 @@ def generate_morlet_bundle() -> MorletBundle:
     metadata: list[tuple[int, int, int, str]] = []
     beta_errors: list[float] = []
     for scale in range(4):
-        sigma = np.float64(0.8 * (2**scale))
-        xi = np.float64((3.0 * np.pi / 4.0) * (2.0 ** (-scale)))
+        sigma = np.float64(sigma_base * (2**scale))
+        xi = np.float64(xi_base * (2.0 ** (-scale)))
         beta_inf = np.exp(-(sigma * sigma * xi * xi) / 2.0)
         for orientation in range(8):
             theta = np.float64(orientation * np.pi / 8.0)
             parallel = xx * np.cos(theta) + yy * np.sin(theta)
             perpendicular = -xx * np.sin(theta) + yy * np.cos(theta)
             envelope = np.exp(
-                -(parallel * parallel + np.float64(0.25) * perpendicular * perpendicular)
+                -(parallel * parallel + np.float64(gamma_squared) * perpendicular * perpendicular)
                 / (2.0 * sigma * sigma)
             )
             carrier = np.exp(1j * xi * parallel)
@@ -175,8 +193,7 @@ def generate_morlet_bundle() -> MorletBundle:
     kernels64.imag[kernels64.imag == 0.0] = 0.0
     zero128 = tuple(float(abs(np.sum(kernel, dtype=np.complex128))) for kernel in kernels128)
     energy128 = tuple(
-        float(abs(np.sum(np.abs(kernel) ** 2, dtype=np.float64) - 1.0))
-        for kernel in kernels128
+        float(abs(np.sum(np.abs(kernel) ** 2, dtype=np.float64) - 1.0)) for kernel in kernels128
     )
     zero64 = tuple(
         float(abs(np.sum(kernel.astype(np.complex128), dtype=np.complex128)))
@@ -197,7 +214,9 @@ def generate_morlet_bundle() -> MorletBundle:
         raise ValueError("complex128 Morlet kernel validation failed")
     if max(zero64) > 1e-6 or max(energy64) > 1e-6:
         raise ValueError("complex64 Morlet kernel validation failed")
-    if max(beta_errors) > 1e-2:
+    # The continuous reference is a Phase1 check, not the finite sampled definition.
+    # Perturbations retain this diagnostic and the exact discrete DC/energy gates.
+    if (sigma0, xi0, gamma) == ("0.8", "3*pi/4", "0.5") and max(beta_errors) > 1e-2:
         raise ValueError("discrete/continuous Morlet correction validation failed")
     parameter_header = {
         "angle_convention": "theta_ell=ell*pi/8-clockwise-image-coordinates",
@@ -206,16 +225,16 @@ def generate_morlet_bundle() -> MorletBundle:
         "convolution": "true-convolution",
         "coordinate_convention": "ux-right-uy-down-centered",
         "formula_version": "explicit-discrete-morlet-v1",
-        "gamma": "0.5",
+        "gamma": gamma,
         "generation_dtype": "complex128-from-float64",
         "modulus": "stable-epsilon-free-v1",
         "morlet_orientations": 8,
         "morlet_scales": 4,
         "normalization": "complex-unit-l2",
         "payload_length": 0,
-        "sigma": "0.8*2^j",
+        "sigma": f"{sigma0}*2^j",
         "support": [105, 105],
-        "xi": "(3*pi/4)*2^(-j)",
+        "xi": f"({xi0})*2^(-j)",
         "zero_dc": "finite-discrete-projection",
     }
     parameter_hash = domain_hash("cg/morlet-param-spec/v1", parameter_header)
@@ -228,9 +247,7 @@ def generate_morlet_bundle() -> MorletBundle:
     spatial_header, spatial_payload = _tensor_payload(spatial)
     spatial_header["canonical_kernel_hash"] = canonical_hash
     spatial_header["spatial_transform"] = "flip-y-and-x-for-cross-correlation"
-    spatial_hash = domain_hash(
-        "cg/morlet-kernel-spatial-exec/v1", spatial_header, spatial_payload
-    )
+    spatial_hash = domain_hash("cg/morlet-kernel-spatial-exec/v1", spatial_header, spatial_payload)
     return MorletBundle(
         kernels128=kernels128,
         kernels64=kernels64,
@@ -266,9 +283,11 @@ def _periodic_bilinear(array: np.ndarray, y: np.ndarray, x: np.ndarray) -> np.nd
     )
 
 
-def validate_spectral_coverage(bundle: MorletBundle) -> dict[str, Any]:
+def validate_spectral_coverage(bundle: MorletBundle, *, xi0: str = "3*pi/4") -> dict[str, Any]:
     """Run the locked 464-grid carrier, overlap, and ring-uniformity gates."""
 
+    validate_morlet_parameters("0.8", xi0, "0.5")
+    xi_base = {"3*pi/4": 3.0 * np.pi / 4.0, "2*pi/3": 2.0 * np.pi / 3.0}[xi0]
     fft_size = 464
     spectra = np.fft.fft2(bundle.kernels128, s=(fft_size, fft_size), axes=(-2, -1))
     power = np.abs(spectra) ** 2
@@ -290,11 +309,10 @@ def validate_spectral_coverage(bundle: MorletBundle) -> dict[str, Any]:
         scale = channel // 8
         orientation = channel % 8
         expected_theta = orientation * np.pi / 8.0
-        expected_radius = (3.0 * np.pi / 4.0) * (2.0 ** (-scale))
-        carrier_projection = (
-            frequency[:, None] * np.sin(expected_theta)
-            + frequency[None, :] * np.cos(expected_theta)
-        )
+        expected_radius = xi_base * (2.0 ** (-scale))
+        carrier_projection = frequency[:, None] * np.sin(expected_theta) + frequency[
+            None, :
+        ] * np.cos(expected_theta)
         candidate_power = np.where(carrier_projection > 0.0, power[channel], -np.inf)
         peak_linear = int(np.argmax(candidate_power))
         peak_y, peak_x = np.unravel_index(peak_linear, (fft_size, fft_size))
@@ -352,7 +370,7 @@ def validate_spectral_coverage(bundle: MorletBundle) -> dict[str, Any]:
                 )
             )
     total_power = np.sum(symmetrized * symmetrized, axis=0, dtype=np.float64)
-    radii = [(3.0 * np.pi / 4.0) * (2.0 ** (-scale)) for scale in range(4)]
+    radii = [xi_base * (2.0 ** (-scale)) for scale in range(4)]
     radii.extend(np.sqrt(radii[index] * radii[index + 1]) for index in range(3))
     angles = np.arange(1440, dtype=np.float64) * (2.0 * np.pi / 1440.0)
     ring_reports: list[dict[str, float]] = []

@@ -8,6 +8,10 @@ from pathlib import Path, PurePosixPath
 from types import MappingProxyType
 from typing import Any
 
+from .morlet import validate_morlet_parameters
+
+PHASE2_MORLET_CONTRACT = "fixed-he-morlet-phase2a-linear-v1"
+
 try:
     import tomllib
 except ModuleNotFoundError:  # pragma: no cover - exercised on supported Python 3.10
@@ -326,6 +330,16 @@ def _validate_semantics(document: dict[str, Any]) -> None:
     if mapping_evidence != "not_available":
         raise ConfigError("patient mapping evidence must remain not_available for CAM16 Phase 1")
     frontend_variant = _resolve_frontend_variant(document["model"])
+    phase2 = document["model"]["contract_id"] == PHASE2_MORLET_CONTRACT
+    if phase2:
+        if frontend_variant != "morlet":
+            raise ConfigError("Phase2-A requires frontend_variant=morlet")
+        try:
+            validate_morlet_parameters(
+                *(document["model"][key] for key in ("sigma0", "xi0", "gamma"))
+            )
+        except ValueError as error:
+            raise ConfigError(str(error)) from error
     if not isinstance(frontend_variant, str) or frontend_variant not in {
         "morlet",
         "matched_control",
@@ -339,6 +353,8 @@ def _validate_semantics(document: dict[str, Any]) -> None:
             "matched_control requires model.contract_id=fixed-he-matched-control-linear-v1"
         )
     for (section, key), expected in _EXACT_VALUES.items():
+        if phase2 and section == "model" and key in {"contract_id", "sigma0", "xi0", "gamma"}:
+            continue
         if frontend_variant == "matched_control" and (section, key) == (
             "model",
             "contract_id",
