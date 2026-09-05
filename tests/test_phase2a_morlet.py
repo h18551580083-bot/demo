@@ -1,5 +1,6 @@
 """Data-free Phase2-A parameter plumbing and Phase1 numerical regression."""
 
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -12,6 +13,15 @@ from cg_pipeline.artifacts import PipelineBlockedError
 from cg_pipeline.config import ConfigError, load_experiment_config
 from cg_pipeline.model import FixedHEClassifier
 from cg_pipeline.morlet import LOCKED_MORLET_PARAMETER_HASH, generate_morlet_bundle
+from cg_pipeline.morlet_validity import validate_phase2_morlet
+
+
+@pytest.fixture(autouse=True)
+def bounded_cpu_threads():
+    previous = torch.get_num_threads()
+    torch.set_num_threads(2)
+    yield
+    torch.set_num_threads(previous)
 
 
 def test_default_matches_original_formula():
@@ -113,11 +123,19 @@ def test_legacy_rejects_perturbation_and_phase2_rejects_invalid_value(tmp_path):
         load_experiment_config(path)
 
 
-@pytest.mark.parametrize("suffix", ["sigma0_0p7", "xi0_2pi3", "gamma_0p625"])
-def test_perturbations_do_not_bypass_existing_spectral_gate(suffix):
+@pytest.mark.parametrize("suffix", ["baseline", "sigma0_0p7", "xi0_2pi3", "gamma_0p625"])
+def test_phase2_preflight_uses_validity_and_preserves_diagnostics(suffix):
     config = load_experiment_config(f"configs/phase2a_morlet_{suffix}.toml")
-    with pytest.raises(PipelineBlockedError, match="spectral coverage failed"):
-        preflight._model_audits(config, torch.device("cpu"))
+    assert preflight._frontend_gate(config) == "phase2a_morlet_validity"
+    report = preflight._model_audits(config, torch.device("cpu"))
+    validity = report["phase2a_morlet_validity"]
+    assert validity["status"] == "PASS"
+    assert all(validity["interface_checks"].values())
+    assert report["morlet_spectral_diagnostics"]["status"] == (
+        "PASS" if suffix == "baseline" else "FAIL"
+    )
+    assert len(report["morlet_spectral_diagnostics"]["ring_uniformity"]) == 7
+    assert len(report["morlet_numerical_diagnostics"]["beta_reference_error"]) == 32
 
 
 def test_preflight_consumption_rejects_other_parameters(monkeypatch):
@@ -144,8 +162,72 @@ def test_a0_preflight_records_actual_parameters():
     config = load_experiment_config("configs/phase2a_morlet_baseline.toml")
     report = preflight._model_audits(config, torch.device("cpu"))
     assert report["morlet_parameters"] == {"sigma0": "0.8", "xi0": "3*pi/4", "gamma": "0.5"}
-    assert report["morlet_spectral_coverage"]["status"] == "PASS"
+    assert report["phase2a_morlet_validity"]["status"] == "PASS"
     assert (
         report["fixed_frontend_identity"]
         == FixedHEClassifier(frontend_backend="fft").frontend.fixed_state_identity()
     )
+
+
+def test_phase1_still_uses_original_gate_and_rejects_failure(monkeypatch):
+    config = load_experiment_config("configs/phase1_baseline.toml")
+    assert preflight._frontend_gate(config) == "morlet_spectral_coverage"
+    assert (
+        preflight._model_audits(config, torch.device("cpu"))["morlet_spectral_coverage"]["status"]
+        == "PASS"
+    )
+    monkeypatch.setattr(
+        preflight, "validate_spectral_coverage", lambda *a, **kw: {"status": "FAIL"}
+    )
+    with pytest.raises(PipelineBlockedError):
+        preflight._model_audits(config, torch.device("cpu"))
+
+
+def test_theoretical_peak_depends_on_configuration():
+    bundle = generate_morlet_bundle(sigma0="0.7")
+    report = validate_phase2_morlet(bundle, sigma0="0.8", xi0="3*pi/4", gamma="0.5")
+    assert report["status"] == "FAIL"
+    assert not report["checks"]["configured_spectral_peaks"]
+
+
+def test_nyquist_peak_and_runtime_only_corruption_fail():
+    bundle = generate_morlet_bundle()
+    axis = np.arange(-52, 53)
+    yy, xx = np.meshgrid(axis, axis)
+    edge = np.exp(-(xx**2 + yy**2) / 32) * np.cos(np.pi * xx)
+    edge -= edge.mean()
+    edge /= np.sqrt((edge**2).sum())
+    kernels = bundle.kernels128.copy()
+    kernels[0] = edge
+    bad = replace(bundle, kernels128=kernels, kernels64=kernels.astype(np.complex64))
+    report = validate_phase2_morlet(bad, sigma0="0.8", xi0="3*pi/4", gamma="0.5")
+    assert report["status"] == "FAIL"
+    assert not report["peaks"][0]["checks"]["nyquist_margin"]
+    runtime_bad = replace(bundle, kernels64=bundle.kernels64.conj())
+    report = validate_phase2_morlet(runtime_bad, sigma0="0.8", xi0="3*pi/4", gamma="0.5")
+    assert report["status"] == "FAIL"
+    assert report["peaks"][0]["checks"]["peak_matches_theory"]
+    assert not report["peaks"][0]["checks"]["runtime_peak_matches_theory"]
+
+
+@pytest.mark.parametrize(
+    "defect", ["shape", "finite", "dc", "energy", "channels", "reflected_peak"]
+)
+def test_phase2_invalid_kernels_fail_closed(defect):
+    bundle = generate_morlet_bundle()
+    kernels = bundle.kernels128.copy()
+    if defect == "shape":
+        kernels = kernels[:, :-1]
+    elif defect == "finite":
+        kernels[0, 0, 0] = np.nan
+    elif defect == "dc":
+        kernels[0] += 0.01
+    elif defect == "energy":
+        kernels *= 2
+    elif defect == "reflected_peak":
+        kernels = kernels.conj()
+    bundle = replace(bundle, kernels128=kernels, kernels64=kernels.astype(np.complex64))
+    if defect == "channels":
+        bundle = replace(bundle, channel_metadata=bundle.channel_metadata[:-1])
+    report = validate_phase2_morlet(bundle, sigma0="0.8", xi0="3*pi/4", gamma="0.5")
+    assert report["status"] == "FAIL"

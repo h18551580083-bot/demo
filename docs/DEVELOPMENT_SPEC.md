@@ -67,6 +67,15 @@ not applicable and must not be reported as passed for this control. Preflight
 consumption requires the gate for the configured frontend. This control does not
 claim complete spectral isolation. See the 2026-09-03 decisions.
 
+Phase2-A `fixed-he-morlet-phase2a-linear-v1` uses the separate
+`phase2a_morlet_validity` gate. It recomputes fixed shape, dtype, finite, DC and
+unit-energy checks, checks both kernel precisions against the configured sampled
+zero-DC theoretical spectral peak, and validates the backend interface with a
+synthetic forward. Overlap, ring uniformity and continuous beta deviation are
+diagnostics, not Phase1 threshold requirements. Legacy Morlet continues to use
+its unchanged identity and spectral coverage gates. See the Phase2-A validity
+decision in `docs/DECISIONS.md` for numerical tolerances and evidence boundaries.
+
 The only real CAM16 training modes are `exploratory_train` and `formal_train`.
 Both are restricted to train/validation and expose no test-access parameter.
 They share manifest readability, legal split, and supplied `group_id`/`slide_id`

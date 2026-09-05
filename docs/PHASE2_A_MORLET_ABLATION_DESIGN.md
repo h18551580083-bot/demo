@@ -1,6 +1,12 @@
 # Phase2-A Morlet parameter ablation design (proposal)
 
-Status (2026-09-05): **parameterization implemented; no training started**.
+Status (2026-09-05): **Phase2 validity implemented; no training started**.
+
+Update: the Phase2-A validity gate supersedes the historical acceptance blocker
+below. A0-A3 pass CPU model/frontend preflight with configured theoretical sampled
+zero-DC peak checks and a synthetic forward. All original coverage diagnostics
+remain recorded. A full cloud CUDA/train-validation preflight is still required
+before training; these data-free checks are not that authorization.
 
 The proposal below is retained as design history. Its implementation blocker has
 been resolved and all four proposed TOMLs now exist. The bounded Phase2 contract

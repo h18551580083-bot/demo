@@ -15,6 +15,7 @@ from .config import PHASE2_MORLET_CONTRACT, ExperimentConfig
 from .data import ManifestBundle
 from .model import FixedHEClassifier
 from .morlet import audit_morlet_identity, generate_morlet_bundle, validate_spectral_coverage
+from .morlet_validity import validate_phase2_morlet
 from .runtime import BatchContract, batch_contract, build_optimizer, validate_training_data
 from .training import audit_optimizer_ownership, configure_determinism
 
@@ -31,6 +32,8 @@ _REQUIRED_PASSED_GATES = {
 
 
 def _frontend_gate(config: ExperimentConfig) -> str:
+    if config.model["contract_id"] == PHASE2_MORLET_CONTRACT:
+        return "phase2a_morlet_validity"
     return (
         "morlet_spectral_coverage"
         if config.frontend_variant == "morlet"
@@ -68,7 +71,7 @@ def _model_audits(config: ExperimentConfig, device: torch.device) -> dict[str, A
         spectral = validate_spectral_coverage(morlet_bundle, xi0=parameters["xi0"])
         phase2 = config.model["contract_id"] == PHASE2_MORLET_CONTRACT
         morlet_audit = (
-            {"status": "PASS", "policy": "configured-discrete-dc-and-unit-energy"}
+            validate_phase2_morlet(morlet_bundle, **parameters)
             if phase2
             else audit_morlet_identity(morlet_bundle, spectral_coverage=spectral)
         )
@@ -82,12 +85,40 @@ def _model_audits(config: ExperimentConfig, device: torch.device) -> dict[str, A
         )
         if morlet_audit["status"] != "PASS" or not fixed_matches:
             raise PipelineBlockedError("fixed frontend Morlet audit failed")
-        if spectral["status"] != "PASS":
+        if not phase2 and spectral["status"] != "PASS":
             raise PipelineBlockedError("Morlet spectral coverage failed")
         frontend_audit = {
             "morlet_identity_audit": morlet_audit,
             "morlet_spectral_coverage": spectral,
         }
+        if phase2:
+            # Synthetic forward validates the actual frontend/backend interface; no data IO.
+            with torch.no_grad():
+                output = model(
+                    torch.zeros(
+                        (1, 3, int(config.model["input_height"]), int(config.model["input_width"])),
+                        dtype=torch.uint8,
+                        device=device,
+                    )
+                )
+            interface_checks = {
+                "he_shape": output.frontend.feature_h.shape
+                == output.frontend.feature_e.shape
+                == (1, 4, 8, int(config.model["input_height"]), int(config.model["input_width"])),
+                "classifier_input": tuple(output.classifier_input.shape) == (1, 9408),
+                "backend_parameters": sum(p.numel() for p in model.electronic_parameters()) == 9473,
+                "fixed_frontend": not list(model.frontend.parameters()),
+                "finite_output": bool(
+                    torch.isfinite(output.classifier_input).all()
+                    and torch.isfinite(output.logits).all()
+                ),
+            }
+            if not all(interface_checks.values()):
+                raise PipelineBlockedError("Phase2-A frontend/backend interface failed")
+            frontend_audit = {
+                "phase2a_morlet_validity": {**morlet_audit, "interface_checks": interface_checks},
+                "morlet_spectral_diagnostics": spectral,
+            }
     else:
         # Construction validates DC and unit energy; hashes are provenance only.
         frontend_audit = {
@@ -156,7 +187,10 @@ def perform_preflight(
     }
     blocked: list[str] = []
     not_applicable = ["patient_level_isolation"]
-    if config.frontend_variant == "matched_control":
+    if (
+        config.frontend_variant == "matched_control"
+        or config.model["contract_id"] == PHASE2_MORLET_CONTRACT
+    ):
         not_applicable.append("morlet_spectral_coverage")
     evidence: dict[str, Any] = {}
     if device.type == "cuda" and not torch.cuda.is_available():
@@ -212,6 +246,9 @@ def consume_preflight_report(
         checks["morlet_parameters"] = report.get("morlet_parameters") == {
             key: config.model[key] for key in ("sigma0", "xi0", "gamma")
         }
+        checks["phase2a_validity_status"] = (
+            report.get("phase2a_morlet_validity", {}).get("status") == "PASS"
+        )
     failed = [name for name, passed in checks.items() if not passed]
     if failed:
         raise PipelineBlockedError("preflight report is not safe to consume: " + ", ".join(failed))

@@ -1968,3 +1968,35 @@ Scientific and governance boundary:
   0.01 reference bound. These are open scientific acceptance issues. This commit
   does not declare the perturbations ready for formal cloud training or approve
   relaxed spectral thresholds.
+
+## 2026-09-05 — Separate Phase2-A validity from Phase1 coverage
+
+- Human approval adds `phase2a_morlet_validity` for the Phase2-A contract only;
+  Phase1 generator, coverage function, thresholds and historical configs remain
+  unchanged. This supersedes the preceding Phase2 spectral acceptance blocker.
+- Hard checks recompute shape `[32,105,105]`, channel count, finite and dtype,
+  complex128/complex64 DC and unit-energy residuals (1e-12/1e-6). A synthetic
+  configured-size forward checks H/E `[1,4,8,H,W]`, classifier input `[1,9408]`,
+  9473 electronic parameters and a non-trainable frontend.
+- The independent reference is the Gaussian Fourier transform with configured
+  sigma/xi/gamma, sampled zero-DC correction and Poisson-summation aliases.
+  It does not inspect observed kernels to choose the expected peak. A continuous
+  corrected positive-lobe peak initializes a 9-by-9 FFT-cell local reference
+  search. An edge maximum fails closed as an unresolved reference search.
+- Both observed tensor precisions must peak within one cell per axis on the
+  464-grid (2*pi/464 radians/pixel), allowing grid quantization rather than
+  fitting A0-A3 errors. Peaks must lie more than one cell inside Nyquist and
+  away from DC on the positive carrier side. Absolute noncentral alias
+  contributions must sum to less than the main contribution: alias dominance
+  is an explicit failure, not a claim of zero aliasing everywhere.
+- Replica orders 2 and 3 must agree at the reference peak within 64 float64
+  epsilons relative to its amplitude. The infinite-support sampled reference
+  is compared to the actual finite-support kernel; disagreement fails closed.
+  Search bounds are computational limits, not declarations of physical invalidity.
+- Every preflight report retains complete Phase1 spectral diagnostics and all
+  continuous beta residuals. Phase2 report consumption requires the new gate,
+  PASS validity status and matching configured parameters; old coverage reports
+  cannot authorize Phase2 execution.
+- A0-A3 CPU model/frontend preflight checks pass, including synthetic forward.
+  This is not a full CUDA/data/authorization preflight or training. No dataset,
+  test split, checkpoint audit, benchmark or real training was used here.
