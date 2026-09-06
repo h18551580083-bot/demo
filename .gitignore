@@ -23,7 +23,16 @@ env/
 .vscode/
 
 # Local calibration outputs and CAM16 data packages
-artifacts/
+artifacts/*
+!artifacts/formal_runs/
+artifacts/formal_runs/**
+!artifacts/formal_runs/**/
+!artifacts/formal_runs/**/completion.json
+!artifacts/formal_runs/**/epoch-*.json
+!artifacts/formal_runs/**/*summary*.json
+!artifacts/formal_runs/**/*history*.json
+!artifacts/formal_runs/**/*history*.jsonl
+!artifacts/formal_runs/**/*history*.csv
 cam16_patch/
 rehearsal-artifacts/
 
