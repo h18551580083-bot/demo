@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from typing import Any
 
 GROUP_SLIDE_ISOLATION_CLAIM = "group_id/slide_id split isolation verified"
@@ -136,3 +137,45 @@ def audit_isolation_claim_payload(value: Any) -> dict[str, Any]:
     visit(value)
     unique = list(dict.fromkeys(forbidden))
     return {"status": "PASS" if not unique else "FAIL", "forbidden_claims": unique}
+
+
+def audit_documentation(repository: Path) -> dict[str, Any]:
+    required = [
+        "AGENTS.md",
+        "CONTEXT.md",
+        "README.md",
+        "docs/DEVELOPMENT_SPEC.md",
+        "docs/DECISIONS.md",
+        "docs/TRAINING_PROTOCOL.md",
+        "docs/PHASE1_TRAINING_RUNBOOK.md",
+        "docs/EVALUATION_PROTOCOL.md",
+        "docs/adr/0010-phase1-preregistered-baseline.md",
+    ]
+    missing = [path for path in required if not (repository / path).is_file()]
+    claim_paths = {
+        repository / "AGENTS.md",
+        repository / "CONTEXT.md",
+        repository / "README.md",
+        *(repository / "docs").rglob("*.md"),
+    }
+    forbidden_claims = [
+        str(path.relative_to(repository)).replace("\\", "/")
+        for path in sorted(claim_paths)
+        if path.is_file()
+        and audit_isolation_claim_text(path.read_text(encoding="utf-8"))["status"] == "FAIL"
+    ]
+    specification = (repository / "docs" / "DEVELOPMENT_SPEC.md").read_text(encoding="utf-8")
+    blocking_section = specification.split("## 6. Blocking unresolved decisions", 1)[-1].split(
+        "## 7. Prohibited actions", 1
+    )[0]
+    active_tbd = (
+        "The following values remain `TBD`" in blocking_section
+        or "must not be inferred, defaulted, or selected" in blocking_section
+    )
+    return {
+        "status": ("PASS" if not missing and not active_tbd and not forbidden_claims else "FAIL"),
+        "required_document_count": len(required),
+        "missing": missing,
+        "active_blocking_tbd": active_tbd,
+        "forbidden_patient_level_claims": forbidden_claims,
+    }

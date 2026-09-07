@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .pytest-*/
+# Covers .pytest-formal-run-id-*; historical tracked copies were removed.
 .ruff_cache/
 *.egg-info/
 build/
@@ -23,6 +24,10 @@ env/
 .vscode/
 
 # Local calibration outputs and CAM16 data packages
+*.ckpt
+*.pt
+*.pth
+*.safetensors
 artifacts/*
 !artifacts/formal_runs/
 artifacts/formal_runs/**
@@ -35,6 +40,7 @@ artifacts/formal_runs/**
 !artifacts/formal_runs/**/*history*.csv
 cam16_patch/
 rehearsal-artifacts/
+picture/
 
 # Binary working documents are not part of the versioned specification
 docs/*.docx

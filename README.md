@@ -29,25 +29,26 @@ From `E:\cg` in PowerShell:
 ```powershell
 $env:PYTHONPATH = 'E:\cg\src'
 python -m pytest tests -q
-python -m cg_acceptance `
-  --device cuda:0 `
-  --mode local_smoke `
-  --run-id decision30-local-smoke-autograd-cuda0-20260731 `
-  --output artifacts\decision30_local_smoke_autograd_cuda0_20260731.json
 python -m compileall -q src tests
 python -m ruff check .
 git diff --check
 ```
 
-The CLI exits with status 1 unless the real non-CPU environment, every formal
-object, every quarter-margin check, zero-variance evidence, input identity, and
-every negative control pass.
+The current project smoke is `python -m pytest tests/test_pipeline_entrypoints.py -q`.
+It checks CLI/config routing and pipeline control flow with synthetic files and
+mocked training. Device numerical acceptance remains a separate check under
+`cg_acceptance`, as required by DEVELOPMENT_SPEC section 3.14.
 
-`local_smoke` is evidence for the local implementation only and cannot close
-formal acceptance. `formal_acceptance` is available through
-`run_calibration_gate(...)` and requires an explicitly pre-registered fixture,
-formal input shape and hashes, plus the expected environment identity. Reports
-are created exclusively; an existing JSON file is never overwritten.
+See [the repository audit](docs/REPOSITORY_AUDIT_2026-09-07.md) for retained tests
+and historical paths, [the contract reconciliation](docs/CONTRACT_RECONCILIATION_2026-09-07.md)
+for the current fact matrix and remaining human decision, and
+[minimal maintenance governance](docs/MAINTENANCE.md) for Skills evaluation and
+report-only automation designs. No Skills or scheduled jobs are installed.
+
+Phase 0 total-acceptance tooling and closure documents are archived at local tag
+`archive/pre-slim-2026-09-07`. Read historical files with
+`git show archive/pre-slim-2026-09-07:<path>`. References in DECISIONS and the TBD
+register to removed files refer to that snapshot. The tag has not been pushed.
 
 ## Training modes
 

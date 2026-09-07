@@ -11,6 +11,7 @@ import pytest
 import torch
 
 from cg_pipeline import training_runs
+from cg_pipeline.config import load_experiment_config
 from cg_pipeline.model import FixedHEClassifier
 from cg_pipeline.training import (
     TrainingContractError,
@@ -377,7 +378,9 @@ def test_formal_epoch_reports_duration_and_existing_metrics(
         lambda path, *_args, **_kwargs: path.write_bytes(b"checkpoint-placeholder"),
     )
     config = SimpleNamespace(
-        model={"frontend_backend": "fft"},
+        model=load_experiment_config(
+            Path(__file__).resolve().parents[1] / "configs" / "phase1_baseline.toml"
+        ).model,
         frontend_variant="morlet",
         training={"max_epochs": 1, "early_stopping_patience": 10},
     )
@@ -451,7 +454,9 @@ def test_exploratory_early_stopping_tracks_best_and_stops_at_patience(
     )
     config = SimpleNamespace(
         execution={"run_id": "matched-control-test", "max_steps": 0},
-        model={"frontend_backend": "fft"},
+        model=load_experiment_config(
+            Path(__file__).resolve().parents[1] / "configs" / "phase1_baseline.toml"
+        ).model,
         frontend_variant="matched_control",
         training={"max_epochs": 6, "early_stopping_patience": 2},
     )

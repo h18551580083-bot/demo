@@ -2000,3 +2000,19 @@ Scientific and governance boundary:
 - A0-A3 CPU model/frontend preflight checks pass, including synthetic forward.
   This is not a full CUDA/data/authorization preflight or training. No dataset,
   test split, checkpoint audit, benchmark or real training was used here.
+
+## 2026-09-07 — Bounded repository slimming and maintenance design
+
+- Human authorization covers repository classification, removal of traceable
+  historical Phase 0 tooling and temporary files, preservation of current research
+  tests, and design-only Skills/automation governance.
+- The pre-change snapshot is local tag `archive/pre-slim-2026-09-07` at
+  `7e8d8cffaa14d99de596c9e11bdf3db611d1e062`; it was not pushed.
+- Retire the historical total-acceptance orchestrator and closure documents;
+  preserve current documentation/patient-claim checks in `claims.py` and its tests.
+  Keep Decision 30 numerical acceptance and tests required by section 3.14.
+- Preserve all formal/uncertain artifacts, current configs, Phase2A implementation,
+  scientific definitions, thresholds, protocols and TBDs. No real training, real
+  dataset access, test evaluation or phase transition is authorized by this work.
+- See `REPOSITORY_AUDIT_2026-09-07.md` for dependency evidence, unresolved existing
+  policy discrepancies and cleanup limitations; `MAINTENANCE.md` is design only.
