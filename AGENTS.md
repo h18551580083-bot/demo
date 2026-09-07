@@ -48,8 +48,9 @@
   `formal_experiment=false` and `experiment_mode=exploratory_train`.
 - Exploratory results are never formal evidence and must not be promoted or renamed
   as formal results.
-- Formal training remains release/tag/hash/preflight gated, uses the frozen seeds
-  and full formal epoch/checkpoint/provenance contract, and never overwrites output.
+- Formal training uses the lightweight authorization and standalone preflight defined
+  by `docs/TRAINING_PROTOCOL.md`, plus frozen seeds, the full epoch/checkpoint/provenance
+  contract, and non-overwriting outputs. Git/release/tag/hash identity is not a startup gate.
 
 ## Completion response
 
