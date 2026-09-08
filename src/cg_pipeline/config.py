@@ -11,6 +11,7 @@ from typing import Any
 from .morlet import validate_morlet_parameters
 
 PHASE2_MORLET_CONTRACT = "fixed-he-morlet-phase2a-linear-v1"
+PHASE2_MORLET_SEEDS = [1729, 3407, 5113, 7717, 9109]
 
 try:
     import tomllib
@@ -334,6 +335,8 @@ def _validate_semantics(document: dict[str, Any]) -> None:
     if phase2:
         if frontend_variant != "morlet":
             raise ConfigError("Phase2-A requires frontend_variant=morlet")
+        if document["training"]["seeds"] != PHASE2_MORLET_SEEDS:
+            raise ConfigError("Phase2-A training.seeds conflicts with the locked contract")
         try:
             validate_morlet_parameters(
                 *(document["model"][key] for key in ("sigma0", "xi0", "gamma"))
@@ -354,6 +357,8 @@ def _validate_semantics(document: dict[str, Any]) -> None:
         )
     for (section, key), expected in _EXACT_VALUES.items():
         if phase2 and section == "model" and key in {"contract_id", "sigma0", "xi0", "gamma"}:
+            continue
+        if phase2 and section == "training" and key == "seeds":
             continue
         if frontend_variant == "matched_control" and (section, key) == (
             "model",
