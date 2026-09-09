@@ -357,3 +357,35 @@ def test_exploratory_overrides_fail_closed(tmp_path: Path, overrides: dict[str, 
 
     with pytest.raises(ConfigError):
         load_experiment_config(path, exploratory_overrides=overrides)
+
+
+def test_phase2_stability_lr_reaches_optimizer():
+    from cg_pipeline.model import FixedHEClassifier
+    from cg_pipeline.runtime import build_optimizer
+
+    for seed in (1729, 3407):
+        config = load_experiment_config(
+            "configs/phase2a_morlet_stability_v1.toml", exploratory_overrides={"seed": seed}
+        )
+        assert config.training["seeds"] == (seed,)
+        assert config.training["early_stopping_patience"] == 5
+        model = FixedHEClassifier(frontend_backend="fft")
+        optimizer = build_optimizer(config, model)
+        assert {group["lr"] for group in optimizer.param_groups} == {0.0005}
+
+
+@pytest.mark.parametrize("lr", ["0", "-0.001", "NaN", "0.01"])
+def test_phase2_stability_rejects_unapproved_lr(tmp_path: Path, lr: str):
+    source = Path("configs/phase2a_morlet_stability_v1.toml").read_text(encoding="utf-8")
+    path = tmp_path / "candidate.toml"
+    path.write_text(source.replace('learning_rate = "0.0005"', f'learning_rate = "{lr}"'))
+    with pytest.raises(ConfigError, match="learning_rate"):
+        load_experiment_config(path)
+
+
+def test_formal_phase2_keeps_locked_lr(tmp_path: Path):
+    source = Path("configs/phase2a_morlet_baseline.toml").read_text(encoding="utf-8")
+    path = tmp_path / "formal.toml"
+    path.write_text(source.replace('learning_rate = "0.001"', 'learning_rate = "0.0005"'))
+    with pytest.raises(ConfigError, match="learning_rate"):
+        load_experiment_config(path)

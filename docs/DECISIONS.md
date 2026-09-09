@@ -2020,3 +2020,26 @@ Scientific and governance boundary:
   dataset access, test evaluation or phase transition is authorized by this work.
 - See `REPOSITORY_AUDIT_2026-09-07.md` for dependency evidence, unresolved existing
   policy discrepancies and cleanup limitations; `MAINTENANCE.md` is design only.
+
+## 2026-09-09 — Bounded exploratory Phase2-A stability candidate
+
+- The user's stability-diagnosis request authorizes a separate exploratory
+  candidate and a historical high/low seed sanity check, not a new formal run.
+- Keep the baseline and all five observed results. The candidate changes only
+  learning rate from `0.001` to `0.0005`; optimizer, patience 5, maximum 20 epochs,
+  sampling, fixed frontend, and evaluation remain unchanged. This is an unproven
+  order-sensitivity hypothesis, not a demonstrated stability improvement.
+- Phase2-A exploratory configuration accepts one seed using the existing
+  exploratory validation. Its learning rate is bounded to `0.001` or `0.0005`.
+  Formal seed and learning-rate validation, and Phase1 validation, are unchanged.
+- Compare seeds 1729 and 3407, selected as the historical maximum and minimum.
+  Preserve non-formal output labels and full train/validation membership; no test
+  access, seed-set revision, baseline overwrite, or automatic formal rerun.
+- All five epoch histories are now available and show falling training loss
+  but volatile slide AUROC. Do not claim initialization
+  sensitivity or premature stopping as established causes. See
+  `PHASE2A_STABILITY_DIAGNOSIS_2026-09-09.md` for evidence and execution status.
+
+- Continuation execution is restricted to the original cloud environment. Local
+  GPU training is prohibited. SSH was refused on 2026-09-09; high/low execution
+  remains blocked and no formal five-seed rerun is authorized.

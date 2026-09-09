@@ -335,7 +335,7 @@ def _validate_semantics(document: dict[str, Any]) -> None:
     if phase2:
         if frontend_variant != "morlet":
             raise ConfigError("Phase2-A requires frontend_variant=morlet")
-        if document["training"]["seeds"] != PHASE2_MORLET_SEEDS:
+        if execution["kind"] == "formal_train" and document["training"]["seeds"] != PHASE2_MORLET_SEEDS:
             raise ConfigError("Phase2-A training.seeds conflicts with the locked contract")
         try:
             validate_morlet_parameters(
@@ -356,6 +356,14 @@ def _validate_semantics(document: dict[str, Any]) -> None:
             "matched_control requires model.contract_id=fixed-he-matched-control-linear-v1"
         )
     for (section, key), expected in _EXACT_VALUES.items():
+        if (
+            phase2
+            and execution["kind"] == "exploratory_train"
+            and (section, key) == ("training", "learning_rate")
+        ):
+            if document[section][key] not in {"0.001", "0.0005"}:
+                raise ConfigError("Phase2-A exploratory learning_rate must be 0.001 or 0.0005")
+            continue
         if phase2 and section == "model" and key in {"contract_id", "sigma0", "xi0", "gamma"}:
             continue
         if phase2 and section == "training" and key == "seeds":
