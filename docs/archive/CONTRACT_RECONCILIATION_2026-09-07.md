@@ -1,3 +1,8 @@
+> **Historical report / audit / proposal; never default-load.**
+> This body records its original scope, results and paths; it is not current
+> scientific authorization. [Archive index](README.md) |
+> [Current specification](../DEVELOPMENT_SPEC.md) | [Decisions](../DECISIONS.md).
+
 # Research contract reconciliation — 2026-09-07
 
 ## Authority and scope

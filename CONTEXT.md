@@ -3,7 +3,7 @@
 This context defines the research language for a simulation-only digital pathology
 classifier with a fixed optical frontend and a trainable digital backend.
 
-## Language
+## Optical / stain
 
 **H/E stain separation**:
 Decomposition of an RGB pathology patch into spatially aligned hematoxylin (H) and
@@ -29,6 +29,8 @@ _Avoid_: RGB intensity, stain concentration
 The ordered nonnegative hematoxylin and eosin contributions obtained by unmixing
 optical density against the fixed H/E basis.
 _Avoid_: HED color, normalized stain intensity
+
+## Morlet / frontend
 
 **First-order fixed wavelet-modulus frontend**:
 The shared, immutable transform that applies one complex wavelet convolution and a
@@ -73,6 +75,8 @@ The auditable identity set covering both the locked H/E stain-separation contrac
 and the shared first-order Morlet wavelet-modulus contract.
 _Avoid_: Kernel hash alone, model checkpoint
 
+## Interaction / backend
+
 **H/E interaction boundary**:
 The transition where fixed H/E modulus maps enter the electronic
 `HEInteractionBlock` with their axis semantics, valid-support mask, and complete
@@ -100,6 +104,8 @@ _Avoid_: Same-location co-occurrence, spatial attention, masked-neighbor average
 A paired electronic interaction feature separating the amount by which H exceeds
 aligned E from the amount by which E exceeds aligned H.
 _Avoid_: Absolute difference alone, stain ratio, normalized difference
+
+## Pooling / classifier
 
 **Conservative pooling support mask**:
 The common Boolean spatial support used to pool every interaction feature,
@@ -138,6 +144,8 @@ The sole auditable CPU execution path against which supported device statistics
 are judged numerically equivalent under approved tolerances.
 _Avoid_: Bitwise oracle, device-local reference, implementation default
 
+## Data / isolation
+
 **Reliable patient-to-slide mapping**:
 An externally supplied mapping whose provenance, in-scope mapping coverage, and
 patient assignment consistency have been verified before it is used to support
@@ -171,10 +179,14 @@ Patient-level isolation remains `not_evaluated` and no patient-level claim is
 allowed.
 _Avoid_: Patient identity, patient-level isolation, inferred filename grouping
 
+## Classifier output
+
 **Linear-logit primary classifier**:
 The trainable digital head that maps the canonical 9408-coordinate pooled vector
 through one zero-initialized affine operation to one raw binary logit per patch.
 _Avoid_: MLP head, probability head, normalized classifier
+
+## Evaluation / claims
 
 **Uncalibrated evaluation score**:
 The sigmoid transform of an approved raw logit used only for ranking and
@@ -187,6 +199,8 @@ The maximum raw patch logit among the immutable existing-patch manifest rows tha
 share one validated `slide_id`; it summarizes only those rows and makes no claim of
 complete WSI or all-tissue coverage.
 _Avoid_: WSI score, complete-slide inference, group score
+
+## Training
 
 **Preregistered starting baseline**:
 The single machine-validated Phase 1 configuration frozen before formal training;
@@ -204,6 +218,8 @@ Authorized CAM16 train/validation execution that consumes a passing standalone
 formal preflight report and preserves the fixed seeds, epochs, checkpoint selection,
 provenance, and immutable output contract.
 _Avoid_: Exploratory training, ad hoc training, test evaluation
+
+## Final test authorization
 
 **Final-once test gate**:
 A separate human authorization that binds the approved data, checkpoint, and

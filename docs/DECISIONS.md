@@ -1,3 +1,7 @@
+> Navigation only: search decisions by topic/date; do not default-load this history.
+> Historical report paths resolve through the [archive index](archive/README.md);
+> the 2026-09-07 [repository audit](archive/REPOSITORY_AUDIT_2026-09-07.md) is evidence.
+
 # Approved decisions
 
 This file records explicit human decisions. It does not replace

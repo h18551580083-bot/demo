@@ -1,3 +1,8 @@
+> **Historical report / audit / proposal; never default-load.**
+> This body records its original scope, results and paths; it is not current
+> scientific authorization. [Archive index](README.md) |
+> [Current specification](../DEVELOPMENT_SPEC.md) | [Decisions](../DECISIONS.md).
+
 # Phase1 Morlet 与 matched-control 对照实验分析
 
 归档日期：2026-09-03。当前版本按 Phase1 frozen release 处理；本次仅提取已有结果并进行描述性统计。

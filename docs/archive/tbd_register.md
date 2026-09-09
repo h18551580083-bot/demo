@@ -1,3 +1,8 @@
+> **Historical report / audit / proposal; never default-load.**
+> This body records its original scope, results and paths; it is not current
+> scientific authorization. [Archive index](README.md) |
+> [Current specification](../DEVELOPMENT_SPEC.md) | [Decisions](../DECISIONS.md).
+
 # TBD 决策台账（TBD Decision Register）
 
 > 只读盘点产物，盘点日期 2026-08-04。
@@ -9,7 +14,7 @@
 ## 1. 盘点范围与口径
 
 - 基线：`e:\cg` 工作树。Phase 0 已于 2026-08-03 关闭
-  （[DEVELOPMENT_SPEC.md](DEVELOPMENT_SPEC.md) §2；
+  （[DEVELOPMENT_SPEC.md](../DEVELOPMENT_SPEC.md) §2；
   [PHASE0_ACCEPTANCE_MATRIX.md](PHASE0_ACCEPTANCE_MATRIX.md) 摘要 11 complete / 0 blocked）。
 - 搜索模式（全仓、大小写不敏感）：
   `TBD | 待定 | 未冻结 | provisional | blocked | 待批准 | 未决`；

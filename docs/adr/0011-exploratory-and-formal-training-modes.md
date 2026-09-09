@@ -1,3 +1,10 @@
+> **Historical ADR.** Formal-training release/Git/tag/hash/clean-tree governance
+> below was superseded by the approved 2026-08-17 decision; the seed count
+> in ADR 0010 was superseded by the 2026-08-31 two-seed decision.
+> Current operational authority: [DEVELOPMENT_SPEC](../DEVELOPMENT_SPEC.md),
+> [TRAINING_PROTOCOL](../TRAINING_PROTOCOL.md), [DECISIONS](../DECISIONS.md).
+> Historical body and amendments are preserved below, not current startup instructions.
+
 # ADR 0011: Separate exploratory and formal CAM16 training modes
 
 Status: accepted on 2026-08-10 by explicit human instruction.

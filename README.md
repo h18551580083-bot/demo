@@ -6,6 +6,18 @@ training/evaluation contracts, and Decision 30 numerical-equivalence gate. It do
 not download data, read or generate WSI candidates, or contain physical/clinical
 deployment code.
 
+## Documentation navigation
+
+[AGENTS](AGENTS.md) is the only default project context. Load specialized documents
+by task: [highest-level specification](docs/DEVELOPMENT_SPEC.md),
+[fixed frontend](docs/specs/FIXED_OPTICAL_FRONTEND_SPEC.md),
+[electronic backend](docs/specs/ELECTRONIC_BACKEND_SPEC.md),
+[training](docs/TRAINING_PROTOCOL.md), [evaluation](docs/EVALUATION_PROTOCOL.md),
+and relevant [terminology](CONTEXT.md) sections or ADRs.
+Search [decisions](docs/DECISIONS.md) by topic/date; do not load the full history.
+[Historical archive](docs/archive/README.md) and [refactor audit](docs/SPEC_REFACTOR_MAP.md)
+are never default context. Reports do not authorize a phase transition or seed change.
+
 ## Public interfaces
 
 - `compare_object(...)`: independent CPU binary64 comparator for one formal
@@ -37,10 +49,10 @@ git diff --check
 The current project smoke is `python -m pytest tests/test_pipeline_entrypoints.py -q`.
 It checks CLI/config routing and pipeline control flow with synthetic files and
 mocked training. Device numerical acceptance remains a separate check under
-`cg_acceptance`, as required by DEVELOPMENT_SPEC section 3.14.
+`cg_acceptance`, as required by [electronic backend section 3.14](docs/specs/ELECTRONIC_BACKEND_SPEC.md#314-required-cross-device-numerical-equivalence-reference-interface).
 
-See [the repository audit](docs/REPOSITORY_AUDIT_2026-09-07.md) for retained tests
-and historical paths, [the contract reconciliation](docs/CONTRACT_RECONCILIATION_2026-09-07.md)
+See [the repository audit](docs/archive/REPOSITORY_AUDIT_2026-09-07.md) for retained tests
+and historical paths, [the contract reconciliation](docs/archive/CONTRACT_RECONCILIATION_2026-09-07.md)
 for the current fact matrix and remaining human decision, and
 [minimal maintenance governance](docs/MAINTENANCE.md) for Skills evaluation and
 report-only automation designs. No Skills or scheduled jobs are installed.
@@ -123,8 +135,8 @@ The active formal run is `phase1-cam16-baseline-b32-v2`, with batch size 32,
 2,487 train updates per complete epoch, and at most 49,740 updates over 20 epochs.
 Its approved seeds are `1729` and `3407`; they share this Run ID and
 `artifacts/formal_runs/phase1-cam16-baseline-b32-v2/` output root.
-Run the controlled checklist in `docs/PHASE1_TRAINING_RUNBOOK.md` with the current
-lightweight authorization record.
+Follow [TRAINING_PROTOCOL](docs/TRAINING_PROTOCOL.md) with the current lightweight
+authorization record; the [runbook](docs/PHASE1_TRAINING_RUNBOOK.md) is a supporting checklist.
 
 ```powershell
 $env:PYTHONPATH = 'E:\cg\src'

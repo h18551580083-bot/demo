@@ -4,8 +4,9 @@ This repository uses a single-context domain documentation layout.
 
 ## Before exploring
 
-- Read `CONTEXT.md` at the repository root when it exists.
-- Read ADRs under `docs/adr/` that touch the area being changed.
+- Read only the task-relevant sections of root `CONTEXT.md` when it exists.
+- Read only ADRs under `docs/adr/` that touch the area being changed.
+- Do not load all ADRs or the full glossary by default.
 - If these files do not exist, proceed silently. Do not invent domain decisions or
   create placeholder decisions.
 
@@ -19,3 +20,7 @@ introducing a synonym.
 
 Surface conflicts with an existing ADR explicitly. Do not silently override an
 accepted architectural decision.
+
+ADRs explain design choices; they do not override DEVELOPMENT_SPEC, approved
+DECISIONS, or current normative specs/protocols. Report an unresolved conflict
+with those authorities; do not silently override either document.

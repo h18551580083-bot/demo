@@ -1,3 +1,8 @@
+> **Historical report / audit / proposal; never default-load.**
+> This body records its original scope, results and paths; it is not current
+> scientific authorization. [Archive index](README.md) |
+> [Current specification](../DEVELOPMENT_SPEC.md) | [Decisions](../DECISIONS.md).
+
 # Phase2-A Morlet parameter ablation design (proposal)
 
 Status (2026-09-05): **Phase2 validity implemented; no training started**.

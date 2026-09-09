@@ -1,79 +1,56 @@
 # Project instructions
 
-## Research boundary
+## Research and data boundaries
 
-- The optical frontend is fixed and must not be trainable.
-- CAM16 is the primary development dataset.
-- Other pathology datasets are reserved for transfer evaluation.
-- The project is simulation-only.
+- The optical frontend is fixed and must not be trainable; the project is simulation-only.
+- CAM16 is the primary development dataset; other pathology datasets are transfer-only.
 - Do not add physical deployment, fabrication, SLM control, or clinical deployment code.
-
-## Specification rules
-
-- docs/DEVELOPMENT_SPEC.md is the highest-level specification.
-- Never fill a TBD without explicit human approval.
-- Record approved decisions in docs/DECISIONS.md.
-- Do not advance to the next phase automatically.
-
-## Data rules
-
+- Do not access CAM16 test: no enumeration, hashing, loading, or evaluation without
+  the separate approved final-once gate. Training uses train/validation only.
 - Prevent cross-split leakage at the declared `group_id`/`slide_id` level.
-- The current CAM16 study has no reliable patient-to-slide mapping and makes no
-  patient-level isolation claim. Record `patient_level_isolation = not_evaluated`
-  and `patient_level_claim_allowed = false`; do not infer patient identity from
-  filenames or identifiers. This non-evaluated patient-level property is not a
-  Phase 0 or formal-training blocker.
-- Never change dataset splits silently.
-- Never download datasets automatically.
-- Do not commit images, checkpoints, credentials, or patient metadata.
+  Record `patient_level_isolation = not_evaluated` and `patient_level_claim_allowed = false`.
+  No reliable patient-to-slide mapping exists for this study; do not infer patient
+  identity from filenames/identifiers. This is not a Phase 0 or formal-training blocker.
+- Never silently change splits, download datasets automatically, or commit images,
+  checkpoints, credentials, or patient metadata.
 
-## Coding rules
+## Authority and execution
 
-- Use typed interfaces where practical.
-- Configuration must not be hidden in source code.
-- Keep optical frontend, electronic backend, evaluation, and dataset adapters separate.
-- Prefer small, testable modules.
-
-## Testing
-
-- Run unit tests for all changed modules.
-- Run the project smoke test before finishing.
-- Report commands, results, failures, and skipped tests.
-
-## Training modes
-
+- `docs/DEVELOPMENT_SPEC.md` is the highest-level contract. Only explicit human
+  approval may fill a TBD or change a scientific contract; record approved decisions
+  in `docs/DECISIONS.md`. Never advance Phase automatically. Report conflicts.
 - The only real CAM16 training modes are `exploratory_train` and `formal_train`.
-- Exploratory training may use a dirty/untracked tree and controlled engineering
-  overrides, but must use only train/validation and must mark every artifact
-  `formal_experiment=false` and `experiment_mode=exploratory_train`.
-- Exploratory results are never formal evidence and must not be promoted or renamed
-  as formal results.
-- Formal training uses the lightweight authorization and standalone preflight defined
-  by `docs/TRAINING_PROTOCOL.md`, plus frozen seeds, the full epoch/checkpoint/provenance
-  contract, and non-overwriting outputs. Git/release/tag/hash identity is not a startup gate.
+  Exploratory work may use a dirty/untracked tree and controlled engineering overrides;
+  every artifact must retain `formal_experiment=false` and `experiment_mode=exploratory_train`.
+  Never promote or rename exploratory results as formal evidence.
+- Formal training follows `docs/TRAINING_PROTOCOL.md`: lightweight authorization,
+  standalone preflight, frozen seeds, full epoch/checkpoint/provenance contract and
+  non-overwriting outputs. Git/release/tag/hash identity is not a startup gate.
+- Keep configuration explicit and optical frontend, electronic backend, evaluation,
+  and dataset adapters separate. Prefer small testable modules and typed interfaces.
+- Run unit tests for changed modules and the non-training project smoke; obey narrower
+  task-specific verification boundaries. Report changed files, test commands/results/
+  failures/skips, unresolved issues, assumptions, and locked-specification impact.
 
-## Completion response
+## Context loading policy
 
-Report:
-1. changed files;
-2. tests executed;
-3. unresolved issues;
-4. assumptions;
-5. whether any locked specification was affected.
+Always read:
+- `AGENTS.md` (the sole default project entry).
 
-## Agent skills
+Read only when relevant:
+- Optical/frontend -> relevant section of `docs/specs/FIXED_OPTICAL_FRONTEND_SPEC.md`
+  and relevant ADR; Phase2-A work also needs its scoped approved decisions.
+- Interaction/backend -> relevant section of `docs/specs/ELECTRONIC_BACKEND_SPEC.md`
+  and relevant ADR.
+- Training -> `docs/TRAINING_PROTOCOL.md` and task-relevant approved amendments.
+- Evaluation -> `docs/EVALUATION_PROTOCOL.md`.
+- Terminology/paper writing -> relevant `CONTEXT.md` section.
+- Architecture history -> relevant ADR only; use `docs/agents/domain.md` for domain work.
+- Historical decision verification -> search `docs/DECISIONS.md` by topic/date.
+- Highest-level scope/change -> `docs/DEVELOPMENT_SPEC.md`.
+- GitHub issue/triage work only -> `docs/agents/issue-tracker.md` and `docs/agents/triage-labels.md`.
+- Maintenance only -> `docs/MAINTENANCE.md`; refactor audit only -> `docs/SPEC_REFACTOR_MAP.md`.
 
-### Issue tracker
-
-PRDs and work items use GitHub Issues; external pull requests are not a request or triage
-surface. See `docs/agents/issue-tracker.md`.
-
-### Triage labels
-
-Use the canonical labels `needs-triage`, `needs-info`, `ready-for-agent`,
-`ready-for-human`, and `wontfix`. See `docs/agents/triage-labels.md`.
-
-### Domain docs
-
-Use the single-context layout with root `CONTEXT.md` and repository-wide ADRs under
-`docs/adr/`. See `docs/agents/domain.md`.
+Do not read all docs, all ADRs, or all DECISIONS by default.
+Historical reports, `docs/archive/`, and historical ADR bodies are never default context.
+Reports explain evidence; they cannot authorize scientific changes.
